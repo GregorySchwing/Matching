@@ -14,45 +14,24 @@ namespace fmm = fast_matrix_market;
 
 // Function to generate CSR from separate vectors for rows and columns in parallel
 template <typename T>
-void generateCSR(const std::vector<T>& rows, const std::vector<T>& columns, T numVertices, std::vector<T>& indptr, std::vector<T>& indices) {
-    std::vector<T> degrees(numVertices, 0);
-    // Count the number of edges incident to each vertex
-    // rows and columns are currently indexed from 0
-    #pragma omp parallel for
-    for (T i = 0; i < rows.size(); ++i) {
-        #pragma omp atomic
-        degrees[rows[i]]++;
-    }
-    
-    T nonZeroCount = 0;
-    #pragma omp parallel for reduction(+:nonZeroCount)
-    for (int i = 0; i < degrees.size(); ++i) {
-        if (degrees[i]) {
-            nonZeroCount++;
-        }
-    }
-
+void generateCSR(const std::vector<T>& rows, const std::vector<T>& columns, T numVertices, std::vector<T>& rowPtr, std::vector<T>& colIndex) {
     // Resize CSR vectors
-    // If you dont want s,t
-    //indptr.resize(2*numVertices + 1, 0);
-    //indices.resize(2*rows.size());
-
-    indptr.resize(2*numVertices + 1 + 2, 0);
-    indices.resize(2*rows.size() + 2*nonZeroCount);
+    rowPtr.resize(2*numVertices + 1, 0);
+    colIndex.resize(2*rows.size());
 
     // Count the number of edges incident to each vertex
     #pragma omp parallel for
     for (T i = 0; i < rows.size(); ++i) {
         #pragma omp atomic
-        indptr[rows[i] + 1]++;
+        rowPtr[rows[i] + 1]++;
     }
     // Cumulative sum to get the row pointers
     for (T i = 1; i <= numVertices; ++i) {
-        indptr[i] += indptr[i - 1];
+        rowPtr[i] += rowPtr[i - 1];
     }
 
-    auto rowPtr_duplicate = indptr;
-    // Fill the indices array
+    auto rowPtr_duplicate = rowPtr;
+    // Fill the colIndex array
     #pragma omp parallel for
     for (T i = 0; i < rows.size(); ++i) {
         T source = rows[i];
@@ -62,48 +41,26 @@ void generateCSR(const std::vector<T>& rows, const std::vector<T>& columns, T nu
         #pragma omp atomic capture
         index = rowPtr_duplicate[source]++;
 
-        indices[index] = destination;
+        colIndex[index] = destination;
     }
 
-    // Copy values of indices from [0, rows.size() - 1] to [rows.size(), 2 * rows.size() - 1]
+    // Copy values of colIndex from [0, rows.size() - 1] to [rows.size(), 2 * rows.size() - 1]
     #pragma omp parallel for
     for (T i = 0; i < rows.size(); ++i) {
-        indices[rows.size() + i] = indices[i];
+        colIndex[rows.size() + i] = colIndex[i];
     }
 
-    // Copy values of indices from [0, rows.size() - 1] to [rows.size(), 2 * rows.size() - 1]
+    // Copy values of colIndex from [0, rows.size() - 1] to [rows.size(), 2 * rows.size() - 1]
     #pragma omp parallel for
     for (T i = 0; i < rows.size(); ++i) {
-        indices[i] = indices[i]+numVertices;
+        colIndex[i] = colIndex[i]+numVertices;
     }
 
-    // Copy values of indptr from [0, numVertices] to [numVertices, 2 * numVertices - 1] and add rows.size()
+    // Copy values of rowPtr from [0, numVertices] to [numVertices, 2 * numVertices - 1] and add rows.size()
     #pragma omp parallel for
     for (T i = 0; i <= numVertices; ++i) {
-        indptr[numVertices + i] = indptr[i] + rows.size();
+        rowPtr[numVertices + i] = rowPtr[i] + rows.size();
     }
-
-    // Add S
-    indptr[2*numVertices + 1] = indptr[2*numVertices]+nonZeroCount;
-    // Add T
-    indptr[2*numVertices + 2] = indptr[2*numVertices+1]+nonZeroCount;
-
-    int atomicIndex = 0;
-    int startOfS = indptr[2*numVertices];
-    int startOfT = indptr[2*numVertices + 1];
-
-    #pragma omp parallel for
-    for (int i = 0; i < degrees.size(); ++i) {
-        if (degrees[i]) {
-            int currentIndex;
-            #pragma omp atomic capture
-            currentIndex = atomicIndex++;
-
-            indices[startOfS+currentIndex] = i;
-            indices[startOfT+currentIndex] = i+numVertices;
-        }
-    }
-
 }
 
 template <typename IT, typename VT>
@@ -187,6 +144,7 @@ int main(int argc, char **argv) {
     printf("MTX to Graph conversion time: %f seconds\n", end_time_csc_2_g - start_time_csc_2_g);
     size_t N = indptr.size()-1;
     size_t NNZ = indices.size();
+    printf("Undirected general graph |V|: %ld, |E|: %ld\n", N/2, NNZ/4);
     printf("Directed bipartite graph |V|: %ld, |E|: %ld\n", N, NNZ);
     std::vector<int64_t> matching(N/2,-1);
     // Tracks whether a vertex has been in the stack, and which edge is next.
