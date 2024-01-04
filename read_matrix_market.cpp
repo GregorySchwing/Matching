@@ -151,8 +151,8 @@ int main(int argc, char **argv) {
     std::vector<int64_t> state(N,0);
     std::list<int64_t> K;
     std::list<int64_t> umatched_stack;
-    // push all non-zero degree vertices onto stack.
-    for (int i = 0; i < (indptr.size()-2)/2; ++i){
+    // push all non-zero degree vertices onto stack
+    for (int i = 0; i < N/2; ++i){
         if (indptr[i]!=indptr[i+1])
             umatched_stack.push_back(i);
     }
