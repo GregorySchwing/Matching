@@ -65,7 +65,7 @@ void generateCSR(const std::vector<T>& rows, const std::vector<T>& columns, T nu
 
 template <typename IT, typename VT>
 void read_file(const std::filesystem::path& in_path,    
-    std::vector<IT> &ind_ptr,
+    std::vector<IT> &indptr,
     std::vector<IT> &indices) {
     std::vector<IT> original_rows;
     std::vector<IT> original_cols;
@@ -76,21 +76,26 @@ void read_file(const std::filesystem::path& in_path,
     // Load
     {
         fmm::read_options options;
-        options.generalize_symmetry = false;
+        options.generalize_symmetry = true;
         std::ifstream f(in_path);
         fmm::read_matrix_market_triplet(f, header, original_rows, original_cols, original_vals, options);
     }
 
-    generateCSR<IT>(original_rows, original_cols,header.ncols,ind_ptr,indices);
+    generateCSR<IT>(original_rows, original_cols,header.ncols,indptr,indices);
     /*
     // Using a regular for loop
     std::cout << "Using a regular for loop:" << std::endl;
-    for (size_t i = 0; i < ind_ptr.size(); ++i) {
-        std::cout << ind_ptr[i] << " ";
+    for (size_t i = 0; i < indptr.size(); ++i) {
+        std::cout << indptr[i] << " ";
     }
     std::cout << std::endl;
+    for (size_t i = 0; i < indices.size(); ++i) {
+        std::cout << indices[i] << " ";
+    }
+    std::cout << std::endl;
+    
     {
-        std::vector<IT>vals(header.nnz*2,1);
+        std::vector<IT>vals(header.nnz*4,1);
         fmm::matrix_market_header header2;
         header2=header;
         header2.nnz*=2;
@@ -100,11 +105,12 @@ void read_file(const std::filesystem::path& in_path,
         fast_matrix_market::write_options options;
         fast_matrix_market::write_matrix_market_csc(f,
                                                     {2*header.ncols, 2*header.ncols},
-                                                    ind_ptr, indices, vals,
+                                                    indptr, indices, vals,
                                                     true,
                                                     options);
     }
     */
+    
 
 }
 
@@ -116,7 +122,7 @@ double getTimeOfDay()
     gettimeofday(&tv, NULL);
     return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
 }
-
+#include <list>
 int main(int argc, char **argv) {
     if (argc < 2) {
         std::cout << "Usage:" << std::endl;
@@ -136,6 +142,14 @@ int main(int argc, char **argv) {
     read_file<int64_t, std::string>(in_path, indptr, indices);
     end_time_csc_2_g = getTimeOfDay();
     printf("MTX to Graph conversion time: %f seconds\n", end_time_csc_2_g - start_time_csc_2_g);
+    size_t N = indptr.size()-1;
+    size_t NNZ = indices.size();
+    printf("Undirected general graph |V|: %ld, |E|: %ld\n", N/2, NNZ/4);
+    printf("Directed bipartite graph |V|: %ld, |E|: %ld\n", N, NNZ);
+    std::vector<int64_t> matching(N/2,-1);
+    // Tracks whether a vertex has been in the stack, and which edge is next.
+    std::vector<int64_t> state(N,0);
+    std::list<int64_t> K;
 
     return 0;
 }
