@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include "Enums.h"
 #include "Edge.h"
+#include "Blossom.h"
 
 class Matcher {
 public:
@@ -38,20 +39,31 @@ bool Matcher::search(const Graph<IT, VT>& graph, const std::vector<IT>& matching
     IT edge;
     IT nextVertexIndex;
     Vertex<IT> nextVertex;
-    IT age;
+    Vertex<IT> *FromBase,*ToBase;
+    IT age = 0;
     bool Found = false;
-    vertexMap[V_index] = Vertex<IT>(V_index,age++,Label::EvenLabel);
+    vertexMap[V_index] = Vertex<IT>(age++,Label::EvenLabel);
     // Push edges onto stack, breaking if that edge is a solution.
     for (IT start = graph.indptr[V_index]; start < graph.indptr[V_index+1]; ++start){
         stack.push_back(graph.indices[start]);
         nextVertexIndex = Edge<IT,VT>::Other(graph,start,V_index);
-        nextVertex=vertexMap[nextVertexIndex];
-        if (!nextVertex.IsMatched() && !nextVertex.IsReached())
+        auto inserted = vertexMap.try_emplace(nextVertexIndex,Vertex<IT>{});
+        vertexMap[nextVertexIndex].ParentField=&((inserted.first)->second);
+        vertexMap[nextVertexIndex].print();
+        if (!vertexMap[nextVertexIndex].IsMatched() && !vertexMap[nextVertexIndex].IsReached())
             break;
     }
     while(!stack.empty()){
         edge = stack.back();
         stack.pop_back();
+        vertexMap[Edge<IT,VT>::EdgeTo(graph,edge)].print();
+        vertexMap[Edge<IT,VT>::EdgeFrom(graph,edge)].print();
+        FromBase = Blossom<IT>::Base(&(vertexMap[Edge<IT,VT>::EdgeFrom(graph,edge)]));
+        //ToBase = Blossom<IT>::Base(&vertexMap[Edge<IT,VT>::EdgeTo(graph,edge)]);
+        // Edge is between two vertices in the same blossom, continue.
+        //if (FromBase == ToBase)
+        //    continue;
+        //if (true){}
     }
     return Found;
 }
