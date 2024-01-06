@@ -18,7 +18,7 @@ public:
                     //std::unordered_map<int64_t,Vertex<int64_t>> &vertexMap,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
-    static bool search(const Graph<IT, VT>& graph, 
+    static Vertex<IT> * search(const Graph<IT, VT>& graph, 
                     const std::vector<IT>& matching, 
                     const size_t V_index,
                     std::list<int64_t> &stack,
@@ -40,7 +40,7 @@ void Matcher::match(const Graph<IT, VT>& graph,
     }
 }
 template <typename IT, typename VT>
-bool Matcher::search(const Graph<IT, VT>& graph, 
+Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph, 
                     const std::vector<IT>& matching, 
                     const size_t V_index,
                     std::list<int64_t> &stack,
@@ -64,43 +64,10 @@ bool Matcher::search(const Graph<IT, VT>& graph,
         CurrentVertex = &vertexVector[nextVertexIndex];
         if (!CurrentVertex->IsReached() && !CurrentVertex->IsMatched())
             break;
-        /*
-        auto inserted = vertexMap.try_emplace(nextVertexIndex,Vertex<IT>{});
-        if (!inserted.first->second.IsReached() && !inserted.first->second.IsMatched())
-            break;
-        */
     }
     while(!stack.empty()){
         edge = stack.back();
         stack.pop_back();
-        /*
-        auto inserted = vertexMap.try_emplace(Edge<IT,VT>::EdgeTo(graph,edge),Vertex<IT>{});
-        // Successfully inserted new object, need to update ParentField to *this pointer
-        if (inserted.second)
-            inserted.first->second.ParentField = &(inserted.first->second);
-        auto inserted2 = vertexMap.try_emplace(Edge<IT,VT>::EdgeFrom(graph,edge),Vertex<IT>{});
-        // Successfully inserted new object, need to update ParentField to *this pointer
-        if (inserted2.second)
-            inserted2.first->second.ParentField = &(inserted2.first->second);
-
-        FromBase = Blossom<IT>::Base(&inserted.first->second);
-        ToBase = Blossom<IT>::Base(&inserted2.first->second);
-        // Edge is between two vertices in the same blossom, continue.
-        if (FromBase == ToBase)
-            continue;
-        if(!FromBase->IsEven())
-            std::swap(FromBase,ToBase);
-        // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
-        if (0 && !ToBase->IsReached() && !ToBase->IsMatched()){
-            ToBase->LabelField=Label::OddLabel;
-            ToBase->TreeField=edge;
-            ToBase->AgeField=time++;
-            // TODO RECOVER(ToBase)
-            ToBase->MatchField=edge;
-            Found = true;
-            break;
-        }
-        */
         FromBase = Blossom<IT>::Base(&vertexVector[Edge<IT,VT>::EdgeFrom(graph,edge)]);
         ToBase = Blossom<IT>::Base(&vertexVector[Edge<IT,VT>::EdgeTo(graph,edge)]);
         // Edge is between two vertices in the same blossom, continue.
@@ -109,16 +76,15 @@ bool Matcher::search(const Graph<IT, VT>& graph,
         if(!FromBase->IsEven())
             std::swap(FromBase,ToBase);
         // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
-        if (0 && !ToBase->IsReached() && !ToBase->IsMatched()){
+        if (!ToBase->IsReached() && !ToBase->IsMatched()){
             ToBase->LabelField=Label::OddLabel;
             ToBase->TreeField=edge;
             ToBase->AgeField=time++;
-            // TODO RECOVER(ToBase)
             ToBase->MatchField=edge;
-            Found = true;
-            break;
+            // I'll let the augment path method recover the path.
+            return ToBase;
         }
     }
-    return Found;
+    return nullptr;
 }
 #endif
