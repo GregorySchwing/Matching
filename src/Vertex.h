@@ -10,15 +10,15 @@ public:
     IT* MatchField;
     IT* TreeField;
     IT* BridgeField;
-    IT* ShoreField;
+    Vertex<IT>* ShoreField;
     short LabelField;
     IT AgeField;
-    IT BaseField;
+    Vertex<IT>* BaseField;
 
     // Constructor
-    Vertex(IT vid, IT age)
+    Vertex(IT vid, IT age,short int Label)
         : BlossomField(this), MatchField(nullptr), TreeField(nullptr),
-          BridgeField(nullptr), ShoreField(nullptr), LabelField(Label::UnreachedLabel), BaseField(vid), AgeField(age) {}
+          BridgeField(nullptr), ShoreField(nullptr), LabelField(Label), BaseField(this), AgeField(age) {}
 
     // Copy constructor
     Vertex(const Vertex& other)
@@ -28,7 +28,17 @@ public:
           AgeField(other.AgeField) {}
 
     // Default constructor
-    Vertex() : Vertex(-1,-1) {}
+    Vertex() : Vertex(-1,-1,Label::UnreachedLabel) {}
+
+    // Method to check if the vertex is reached
+    bool IsReached() const {
+        return LabelField != Label::UnreachedLabel;
+    }
+
+    // Method to check if the vertex is matched
+    bool IsMatched() const {
+        return MatchField != nullptr;
+    }
 
     // Utility function to print vertex information
     void print() const {
@@ -38,7 +48,12 @@ public:
                   << "BridgeField: " << BridgeField << ", "
                   << "ShoreField: " << ShoreField << ", "
                   << "LabelField: " << LabelField << ", "
-                  << "AgeField: " << AgeField << std::endl;
+                  << "BaseField: " << BaseField << ", "
+                  << "AgeField: " << AgeField << ", "
+                  << "IsReached: " << IsReached() << ", "
+                  << "IsMatched: " << IsMatched() << ", "
+                  << std::endl;
+
     }
 };
 #endif //VERTEX_H

@@ -29,6 +29,10 @@ public:
     // Other member functions...
     std::vector<IT> indptr;
     std::vector<IT> indices;
+    std::vector<IT> original_rows;
+    std::vector<IT> original_cols;
+    std::vector<VT> original_vals;
+    size_t N,M;
 private:
     void generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex) {
         rowPtr.resize(numVertices + 1, 0);
@@ -84,12 +88,5 @@ private:
         N = header.ncols;
         M = header.nnz;
     }
-
-private:
-
-    std::vector<IT> original_rows;
-    std::vector<IT> original_cols;
-    std::vector<VT> original_vals;
-    size_t N,M;
 };
 #endif
