@@ -69,11 +69,11 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
         FromBaseVertexID = Edge<IT,VT>::EdgeFrom(graph,stackEdge);
-        FromBase = Blossom<IT>::Base(&vertexVector[FromBaseVertexID]);
+        FromBase = Blossom::Base(&vertexVector[FromBaseVertexID]);
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
         ToBaseVertexID = Edge<IT,VT>::EdgeTo(graph,stackEdge);
-        ToBase = Blossom<IT>::Base(&vertexVector[ToBaseVertexID]);
+        ToBase = Blossom::Base(&vertexVector[ToBaseVertexID]);
         // Edge is between two vertices in the same blossom, continue.
         if (FromBase == ToBase)
             continue;
