@@ -105,7 +105,7 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
-            //Blossom::Shrink(graph,stackEdge,vertexVector,stack);
+            Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
     return nullptr;

@@ -20,7 +20,7 @@ public:
     Graph(const std::filesystem::path& in_path);
     size_t getN() const;
     size_t getM() const;
-    static void pushEdgesOntoStack(const Graph<IT, VT>& graph, 
+    static bool pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                         std::vector<Vertex<IT>> & vertexVector, 
                                         IT V_index, 
                                         std::list<IT> &stack,
@@ -118,7 +118,7 @@ void Graph<IT,VT>::generateCSR(const std::vector<IT>& rows, const std::vector<IT
 
 
 template <typename IT, typename VT>
-void Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
+bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                     std::vector<Vertex<IT>> & vertexVector, 
                                     IT V_index, 
                                     std::list<IT> &stack,
@@ -126,7 +126,6 @@ void Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph,
                                     IT optionalEdge2){
     IT nextVertexIndex;
     Vertex<IT>* nextVertex;
-
     // Push edges onto stack, breaking if that stackEdge is a solution.
     for (IT start = graph.indptr[V_index]; start < graph.indptr[V_index + 1]; ++start) {
         // For blossom contraction, need to skip repushing the matched & tree edges
@@ -138,8 +137,9 @@ void Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph,
 
         nextVertex = &vertexVector[nextVertexIndex];
         if (!nextVertex->IsReached() && !nextVertex->IsMatched())
-            break;
+            return true;
     }
+    return false;
 }
 
 // Static method to find the other endpoint of an edge

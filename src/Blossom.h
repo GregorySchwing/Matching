@@ -30,16 +30,28 @@ Vertex<IT>* Blossom::Base(Vertex<IT>* x) {
 
 template <typename IT, typename VT>
 void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack){
-    Vertex<IT> *FromBase,*ToBase, *nextVertex;
+    // V,W
     Vertex<IT> *EdgeFromVertex,*EdgeToVertex;
-    IT nextEdge, matchedEdge, treeEdge;
+    // A,B
+    Vertex<IT> *FromBase,*ToBase;
+    // E
+    IT nextEdge;
 
     nextEdge = stackEdge;
+    // V = EdgeFrom(E);
     EdgeFromVertex = &vertexVector[Graph<IT,VT>::EdgeFrom(graph,nextEdge)];
-    FromBase = Blossom::Base(EdgeFromVertex);
+    // W = EdgeTo(E);
     EdgeToVertex = &vertexVector[Graph<IT,VT>::EdgeTo(graph,nextEdge)];
+    // X = Blossom(V);
+    // B = Base(X);
+    // Does the root of a DSU always equal the base of the blossom?
+    FromBase = Blossom::Base(EdgeFromVertex);
+    // Y = Blossom(W);
+    // A = Base(Y);
+    // Does the root of a DSU always equal the base of the blossom?
     ToBase = Blossom::Base(EdgeToVertex);
 
+    // if (Age(A) > Age(B))
     if(ToBase->AgeField > FromBase->AgeField){
         std::swap(FromBase,ToBase);
         std::swap(EdgeFromVertex,EdgeToVertex);
@@ -52,26 +64,36 @@ void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector
     */
     bool Found = false;
     while(FromBase!=ToBase){
+        IT matchedEdge, treeEdge;
+        // M = Match(B);
         matchedEdge = FromBase->MatchField;
-        ptrdiff_t FromBase_VertexID = FromBase - &vertexVector[0];
-        nextVertex = &vertexVector[Graph<IT,VT>::Other(graph,matchedEdge,FromBase_VertexID)];
-        nextVertex->BridgeField = nextEdge;
-        ptrdiff_t EdgeFromVertex_VertexID = EdgeFromVertex - &vertexVector[0];
-        nextVertex->ShoreField = EdgeFromVertex_VertexID;
-        treeEdge = nextVertex->TreeField;
-        ptrdiff_t nextVertex_VertexID = nextVertex - &vertexVector[0];
 
+        // W = Other(M, B);
+        ptrdiff_t FromBase_VertexID = FromBase - &vertexVector[0];
+        EdgeToVertex = &vertexVector[Graph<IT,VT>::Other(graph,matchedEdge,FromBase_VertexID)];
+        
+        // Bridge(W) = E;
+        EdgeToVertex->BridgeField = nextEdge;
+
+        // Shore(W) = V;
+        ptrdiff_t EdgeFromVertex_VertexID = EdgeFromVertex - &vertexVector[0];
+        EdgeToVertex->ShoreField = EdgeFromVertex_VertexID;
+
+        // T = Tree(W);
+        treeEdge = EdgeToVertex->TreeField;
+        ptrdiff_t EdgeToVertex_VertexID = EdgeToVertex - &vertexVector[0];
         if (!Found){
-            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertex_VertexID,stack,matchedEdge,treeEdge);
+            Found = Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,EdgeToVertex_VertexID,stack,matchedEdge,treeEdge);
         }
 
         // Little unsure of this logic.
-        ToBase = Blossom::Base(nextVertex);
+        // Y = Blossom(W);
+        ToBase = Blossom::Base(EdgeToVertex);
         FromBase = SetUnion(ToBase, FromBase);
         nextEdge = treeEdge;
-        EdgeFromVertex = &vertexVector[Graph<IT,VT>::Other(graph,matchedEdge,nextVertex_VertexID)];
+        EdgeFromVertex = &vertexVector[Graph<IT,VT>::Other(graph,nextEdge,EdgeToVertex_VertexID)];
 
-        ToBase = Blossom::Base(nextVertex);
+        ToBase = Blossom::Base(EdgeFromVertex);
         FromBase = SetUnion(ToBase, FromBase);
     }
 }
