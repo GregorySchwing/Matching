@@ -11,7 +11,7 @@ class Blossom {
         static Vertex<IT>* Base(Vertex<IT>* x);
         // Static method to find the root of a vertex
         template <typename IT, typename VT>
-        static Vertex<IT>* Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack);
+        static void Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack);
     private:
 
         // Helper function for path compression
@@ -29,7 +29,7 @@ Vertex<IT>* Blossom::Base(Vertex<IT>* x) {
 }
 
 template <typename IT, typename VT>
-Vertex<IT>* Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack){
+void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack){
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     Vertex<IT> *EdgeFromVertex,*EdgeToVertex;
     IT nextEdge, matchedEdge, treeEdge;
@@ -62,12 +62,18 @@ Vertex<IT>* Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std:
         ptrdiff_t nextVertex_VertexID = nextVertex - &vertexVector[0];
 
         if (!Found){
-            //pushEdgesOntoStack<IT,VT>(graph,vertexVector,nextVertex_VertexID,stack,matchedEdge,treeEdge);
-
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertex_VertexID,stack,matchedEdge,treeEdge);
         }
-    }
 
-    return nullptr;
+        // Little unsure of this logic.
+        ToBase = Blossom::Base(nextVertex);
+        FromBase = SetUnion(ToBase, FromBase);
+        nextEdge = treeEdge;
+        EdgeFromVertex = &vertexVector[Graph<IT,VT>::Other(graph,matchedEdge,nextVertex_VertexID)];
+
+        ToBase = Blossom::Base(nextVertex);
+        FromBase = SetUnion(ToBase, FromBase);
+    }
 }
 
 
