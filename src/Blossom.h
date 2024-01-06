@@ -31,21 +31,18 @@ Vertex<IT>* Blossom::Base(Vertex<IT>* x) {
 template <typename IT, typename VT>
 Vertex<IT>* Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack){
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
-    IT EdgeFromVertexID,EdgeToVertexID, currentVertexID, nextVertexID;
-    IT nextEdge, matchedEdge;
+    Vertex<IT> *EdgeFromVertex,*EdgeToVertex;
+    IT nextEdge, matchedEdge, treeEdge;
+
     nextEdge = stackEdge;
-    // Necessary because vertices dont know their own index.
-    // It simplifies vector creation..
-    EdgeFromVertexID = Edge<IT,VT>::EdgeFrom(graph,nextEdge);
-    FromBase = Blossom::Base(&vertexVector[EdgeFromVertexID]);
-    // Necessary because vertices dont know their own index.
-    // It simplifies vector creation..
-    EdgeToVertexID = Edge<IT,VT>::EdgeTo(graph,nextEdge);
-    ToBase = Blossom::Base(&vertexVector[EdgeToVertexID]);
+    EdgeFromVertex = &vertexVector[Edge<IT,VT>::EdgeFrom(graph,nextEdge)];
+    FromBase = Blossom::Base(EdgeFromVertex);
+    EdgeToVertex = &vertexVector[Edge<IT,VT>::EdgeTo(graph,nextEdge)];
+    ToBase = Blossom::Base(EdgeToVertex);
 
     if(ToBase->AgeField > FromBase->AgeField){
         std::swap(FromBase,ToBase);
-        std::swap(EdgeFromVertexID,EdgeToVertexID);
+        std::swap(EdgeFromVertex,EdgeToVertex);
     }
 
     /*
@@ -53,13 +50,21 @@ Vertex<IT>* Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std:
     * the blossoms into a superblossom.  Edges incident to the odd vertices
     * on the path from V to A are pushed onto stack S, to later search from.
     */
+    bool Found = false;
     while(FromBase!=ToBase){
         matchedEdge = FromBase->MatchField;
         ptrdiff_t FromBase_VertexID = FromBase - &vertexVector[0];
-        nextVertexID = Edge<IT,VT>::Other(graph,matchedEdge,FromBase_VertexID);
-        nextVertex = &vertexVector[nextVertexID];
+        nextVertex = &vertexVector[Edge<IT,VT>::Other(graph,matchedEdge,FromBase_VertexID)];
         nextVertex->BridgeField = nextEdge;
-        //nextVertex->ShoreField = nextEdge;
+        ptrdiff_t EdgeFromVertex_VertexID = EdgeFromVertex - &vertexVector[0];
+        nextVertex->ShoreField = EdgeFromVertex_VertexID;
+        treeEdge = nextVertex->TreeField;
+        ptrdiff_t nextVertex_VertexID = nextVertex - &vertexVector[0];
+
+        if (!Found){
+            //pushEdgesOntoStack<IT,VT>(graph,vertexVector,nextVertex_VertexID,stack,matchedEdge,treeEdge);
+
+        }
     }
 
     return nullptr;

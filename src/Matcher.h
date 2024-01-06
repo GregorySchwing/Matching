@@ -28,7 +28,9 @@ public:
     static void pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                     std::vector<Vertex<IT>> & vertexVector, 
                                     IT V_index, 
-                                    std::list<IT> &stack);
+                                    std::list<IT> &stack,
+                                    IT optionalEdge1 = -1,
+                                    IT optionalEdge2 = -1);
 
 };
 template <typename IT, typename VT>
@@ -113,12 +115,17 @@ template <typename IT, typename VT>
 void Matcher::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                     std::vector<Vertex<IT>> & vertexVector, 
                                     IT V_index, 
-                                    std::list<IT> &stack){
+                                    std::list<IT> &stack,
+                                    IT optionalEdge1,
+                                    IT optionalEdge2){
     IT nextVertexIndex;
     Vertex<IT>* nextVertex;
 
     // Push edges onto stack, breaking if that stackEdge is a solution.
     for (IT start = graph.indptr[V_index]; start < graph.indptr[V_index + 1]; ++start) {
+        // For blossom contraction, need to skip repushing the matched & tree edges
+        if (graph.indices[start] == optionalEdge1 || graph.indices[start] == optionalEdge2)
+            continue;
         stack.push_back(graph.indices[start]);
 
         nextVertexIndex = Edge<IT, VT>::Other(graph, graph.indices[start], V_index);
