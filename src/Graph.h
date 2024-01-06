@@ -1,7 +1,8 @@
 // Copyright (C) 2023 Adam Lugowski. All rights reserved.
 // Use of this source code is governed by the BSD 2-clause license found in the LICENSE.txt file.
 // SPDX-License-Identifier: BSD-2-Clause
-
+#ifndef Graph_H
+#define Graph_H
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -19,9 +20,15 @@ public:
     Graph(const std::filesystem::path& in_path) {
         read_file(in_path);
     }
-
+    size_t getN() const{
+        return N;
+    }
+    size_t getM() const{
+        return M;
+    }
     // Other member functions...
-
+    std::vector<IT> indptr;
+    std::vector<IT> indices;
 private:
     void generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex) {
         rowPtr.resize(numVertices + 1, 0);
@@ -74,12 +81,15 @@ private:
         // member function on the duration object
         std::cout << "EdgeList to CSR conversion time: "<< duration.count() << " milliseconds" << std::endl;
         std::cout << "Undirected general graph |V|: "<< indptr.size()-1 << " |E|: " << indices.size()/2 << std::endl;
+        N = header.ncols;
+        M = header.nnz;
     }
 
 private:
-    std::vector<IT> indptr;
-    std::vector<IT> indices;
+
     std::vector<IT> original_rows;
     std::vector<IT> original_cols;
     std::vector<VT> original_vals;
+    size_t N,M;
 };
+#endif

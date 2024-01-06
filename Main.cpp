@@ -2,7 +2,8 @@
 // Use of this source code is governed by the BSD 2-clause license found in the LICENSE.txt file.
 // SPDX-License-Identifier: BSD-2-Clause
 
-#include "src/graph.h"
+#include "Graph.h"
+#include "Matcher.h"
 
 #include <list>
 int main(int argc, char **argv) {
@@ -18,6 +19,9 @@ int main(int argc, char **argv) {
     std::filesystem::path in_path{argv[1]};
     double start_time_csc_2_g, end_time_csc_2_g;
     Graph<int64_t, std::string>  G(in_path);
+    std::vector<int64_t> matching;
+    matching.resize(G.getN(),-1);
+    Matcher::match<int64_t, std::string>(G,matching);
     //size_t N = indptr.size()-1;
     //size_t NNZ = indices.size();
     //printf("Undirected general graph |V|: %ld, |E|: %ld\n", N, NNZ);
