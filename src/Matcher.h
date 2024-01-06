@@ -15,23 +15,18 @@ public:
     static void match(const Graph<IT, VT>& graph, 
                     std::vector<IT>& matching,
                     std::list<IT> &stack,
-                    //std::unordered_map<int64_t,Vertex<int64_t>> &vertexMap,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
     static Vertex<IT> * search(const Graph<IT, VT>& graph, 
                     const std::vector<IT>& matching, 
                     const size_t V_index,
                     std::list<IT> &stack,
-                    //std::unordered_map<int64_t,Vertex<int64_t>> &vertexMap,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
-    static void pushEdgesOntoStack(const Graph<IT, VT>& graph, 
-                                    std::vector<Vertex<IT>> & vertexVector, 
-                                    IT V_index, 
-                                    std::list<IT> &stack,
-                                    IT optionalEdge1 = -1,
-                                    IT optionalEdge2 = -1);
-
+    static void augment(const Graph<IT, VT>& graph, 
+                    std::vector<IT>& matching, 
+                    Vertex<IT> * TailOfAugmentingPath,
+                    std::vector<Vertex<IT>> & vertexVector);
 };
 template <typename IT, typename VT>
 void Matcher::match(const Graph<IT, VT>& graph, 
@@ -39,11 +34,18 @@ void Matcher::match(const Graph<IT, VT>& graph,
                     std::list<IT> &stack,
                     //std::unordered_map<int64_t,Vertex<int64_t>> &vertexMap,
                     std::vector<Vertex<IT>> & vertexVector) {
+    Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
         if (matching[i] < 0) {
             // Your matching logic goes here...
-            search(graph,matching,i,stack,vertexVector);
+            TailOfAugmentingPath=search(graph,matching,i,stack,vertexVector);
+            // If not a nullptr, I found an AP.
+            if (TailOfAugmentingPath){
+                printf("FOUND AP!\n");
+            } else {
+                printf("DIDNT FOUND AP!\n");
+            }
         }
     }
 }
@@ -64,7 +66,7 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
     nextVertex->AgeField=time++;
     nextVertex->LabelField=Label::EvenLabel;
     // Push edges onto stack, breaking if that stackEdge is a solution.
-    pushEdgesOntoStack<IT,VT>(graph,vertexVector,V_index,stack);
+    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     while(!stack.empty()){
         stackEdge = stack.back();
         stack.pop_back();
@@ -101,38 +103,31 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
             nextVertex = &vertexVector[nextVertexIndex];
             nextVertex->LabelField=Label::EvenLabel;
             nextVertex->AgeField=time++;
-            pushEdgesOntoStack<IT,VT>(graph,vertexVector,nextVertexIndex,stack);
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack);
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
-            Blossom::Shrink(graph,stackEdge,vertexVector,stack);
+            //Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
     return nullptr;
 }
 
 template <typename IT, typename VT>
-void Matcher::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
-                                    std::vector<Vertex<IT>> & vertexVector, 
-                                    IT V_index, 
-                                    std::list<IT> &stack,
-                                    IT optionalEdge1,
-                                    IT optionalEdge2){
-    IT nextVertexIndex;
-    Vertex<IT>* nextVertex;
+void Matcher::augment(const Graph<IT, VT>& graph, 
+                    std::vector<IT>& matching, 
+                    Vertex<IT> * TailOfAugmentingPath,
+                    std::vector<Vertex<IT>> & vertexVector) {
+    do
+    {
+        //ListPut(Tree(V), P);
 
-    // Push edges onto stack, breaking if that stackEdge is a solution.
-    for (IT start = graph.indptr[V_index]; start < graph.indptr[V_index + 1]; ++start) {
-        // For blossom contraction, need to skip repushing the matched & tree edges
-        if (graph.indices[start] == optionalEdge1 || graph.indices[start] == optionalEdge2)
-            continue;
-        stack.push_back(graph.indices[start]);
+        //W = Other(Tree(V), V);
+        //B = Base(Blossom(W));
+        //Path(W, B, P);
 
-        nextVertexIndex = Graph<IT, VT>::Other(graph, graph.indices[start], V_index);
-
-        nextVertex = &vertexVector[nextVertexIndex];
-        if (!nextVertex->IsReached() && !nextVertex->IsMatched())
-            break;
-    }
+        //V = Other(Match(B), B);
+    } while (TailOfAugmentingPath != nullptr);
 }
+
 #endif
