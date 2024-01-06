@@ -40,30 +40,47 @@ bool Matcher::search(const Graph<IT, VT>& graph, const std::vector<IT>& matching
     IT nextVertexIndex;
     Vertex<IT> nextVertex;
     Vertex<IT> *FromBase,*ToBase;
-    IT age = 0;
+    IT time = 0;
     bool Found = false;
-    vertexMap[V_index] = Vertex<IT>(age++,Label::EvenLabel);
+    auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
+
     // Push edges onto stack, breaking if that edge is a solution.
     for (IT start = graph.indptr[V_index]; start < graph.indptr[V_index+1]; ++start){
         stack.push_back(graph.indices[start]);
         nextVertexIndex = Edge<IT,VT>::Other(graph,start,V_index);
         auto inserted = vertexMap.try_emplace(nextVertexIndex,Vertex<IT>{});
-        vertexMap[nextVertexIndex].ParentField=&((inserted.first)->second);
-        vertexMap[nextVertexIndex].print();
-        if (!vertexMap[nextVertexIndex].IsMatched() && !vertexMap[nextVertexIndex].IsReached())
+        if (!inserted.first->second.IsReached() && !inserted.first->second.IsMatched())
             break;
     }
     while(!stack.empty()){
         edge = stack.back();
         stack.pop_back();
-        vertexMap[Edge<IT,VT>::EdgeTo(graph,edge)].print();
-        vertexMap[Edge<IT,VT>::EdgeFrom(graph,edge)].print();
-        FromBase = Blossom<IT>::Base(&(vertexMap[Edge<IT,VT>::EdgeFrom(graph,edge)]));
-        //ToBase = Blossom<IT>::Base(&vertexMap[Edge<IT,VT>::EdgeTo(graph,edge)]);
+        auto inserted = vertexMap.try_emplace(Edge<IT,VT>::EdgeTo(graph,edge),Vertex<IT>{});
+        // Successfully inserted new object, need to update ParentField to *this pointer
+        if (inserted.second)
+            inserted.first->second.ParentField = &(inserted.first->second);
+        auto inserted2 = vertexMap.try_emplace(Edge<IT,VT>::EdgeFrom(graph,edge),Vertex<IT>{});
+        // Successfully inserted new object, need to update ParentField to *this pointer
+        if (inserted2.second)
+            inserted2.first->second.ParentField = &(inserted2.first->second);
+
+        FromBase = Blossom<IT>::Base(&inserted.first->second);
+        ToBase = Blossom<IT>::Base(&inserted2.first->second);
         // Edge is between two vertices in the same blossom, continue.
-        //if (FromBase == ToBase)
-        //    continue;
-        //if (true){}
+        if (FromBase == ToBase)
+            continue;
+        if(!FromBase->IsEven())
+            std::swap(FromBase,ToBase);
+        // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
+        if (0 && !ToBase->IsReached() && !ToBase->IsMatched()){
+            ToBase->LabelField=Label::OddLabel;
+            ToBase->TreeField=edge;
+            ToBase->AgeField=time++;
+            // TODO RECOVER(ToBase)
+            ToBase->MatchField=edge;
+            Found = true;
+            break;
+        }
     }
     return Found;
 }

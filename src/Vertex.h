@@ -9,17 +9,17 @@ public:
     Vertex<IT>* ParentField;
     IT RankField;
 
-    IT* MatchField;
-    IT* TreeField;
-    IT* BridgeField;
+    IT MatchField;
+    IT TreeField;
+    IT BridgeField;
     Vertex<IT>* ShoreField;
     short LabelField;
     IT AgeField;
 
     // Constructor
     Vertex(IT age,short int Label)
-        : ParentField(this), RankField(0), MatchField(nullptr), TreeField(nullptr),
-          BridgeField(nullptr), ShoreField(nullptr), LabelField(Label), AgeField(age) {}
+        : ParentField(this), RankField(0), MatchField(-1), TreeField(-1),
+          BridgeField(-1), ShoreField(nullptr), LabelField(Label), AgeField(age) {}
 
     // Copy constructor
     Vertex(const Vertex& other)
@@ -29,8 +29,8 @@ public:
           AgeField(other.AgeField) {}
 
     // Default constructor
-    Vertex() : ParentField(this), RankField(0), MatchField(nullptr), TreeField(nullptr),
-          BridgeField(nullptr), ShoreField(nullptr), LabelField(Label::UnreachedLabel), AgeField(-1) {}
+    Vertex() : ParentField(this), RankField(0), MatchField(-1), TreeField(-1),
+          BridgeField(-1), ShoreField(nullptr), LabelField(Label::UnreachedLabel), AgeField(-1) {}
     
     // Method to check if the vertex is reached
     bool IsReached() const {
@@ -44,7 +44,7 @@ public:
 
     // Method to check if the vertex is matched
     bool IsMatched() const {
-        return MatchField != nullptr;
+        return MatchField >= 0;
     }
 
     // Utility function to print vertex information
