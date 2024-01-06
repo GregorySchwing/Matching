@@ -47,7 +47,7 @@ bool Matcher::search(const Graph<IT, VT>& graph, const std::vector<IT>& matching
     // Push edges onto stack, breaking if that edge is a solution.
     for (IT start = graph.indptr[V_index]; start < graph.indptr[V_index+1]; ++start){
         stack.push_back(graph.indices[start]);
-        nextVertexIndex = Edge<IT,VT>::Other(graph,start,V_index);
+        nextVertexIndex = Edge<IT,VT>::Other(graph,graph.indices[start],V_index);
         auto inserted = vertexMap.try_emplace(nextVertexIndex,Vertex<IT>{});
         if (!inserted.first->second.IsReached() && !inserted.first->second.IsMatched())
             break;
