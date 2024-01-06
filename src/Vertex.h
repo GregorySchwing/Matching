@@ -12,14 +12,14 @@ public:
     IT MatchField;
     IT TreeField;
     IT BridgeField;
-    Vertex<IT>* ShoreField;
+    IT ShoreField;
     short LabelField;
     IT AgeField;
 
     // Constructor
     Vertex(IT age,short int Label)
         : ParentField(this), RankField(0), MatchField(-1), TreeField(-1),
-          BridgeField(-1), ShoreField(nullptr), LabelField(Label), AgeField(age) {}
+          BridgeField(-1), ShoreField(-1), LabelField(Label), AgeField(age) {}
 
     // Copy constructor
     Vertex(const Vertex& other)
@@ -30,7 +30,7 @@ public:
 
     // Default constructor
     Vertex() : ParentField(this), RankField(0), MatchField(-1), TreeField(-1),
-          BridgeField(-1), ShoreField(nullptr), LabelField(Label::UnreachedLabel), AgeField(-1) {}
+          BridgeField(-1), ShoreField(-1), LabelField(Label::UnreachedLabel), AgeField(-1) {}
     
     // Method to check if the vertex is reached
     bool IsReached() const {

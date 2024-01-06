@@ -2,13 +2,16 @@
 #define BLOSSOM_H
 
 #include "Vertex.h"
+#include "Edge.h"
 
 class Blossom {
     public:
         // Static method to find the root of a vertex
         template <typename IT>
         static Vertex<IT>* Base(Vertex<IT>* x);
-
+        // Static method to find the root of a vertex
+        template <typename IT, typename VT>
+        static Vertex<IT>* Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack);
     private:
 
         // Helper function for path compression
@@ -19,6 +22,49 @@ class Blossom {
         template <typename IT>
         static Vertex<IT>* SetUnion(Vertex<IT>* x, Vertex<IT>* y);
 };
+
+template <typename IT>
+Vertex<IT>* Blossom::Base(Vertex<IT>* x) {
+    return FindSet(x);
+}
+
+template <typename IT, typename VT>
+Vertex<IT>* Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack){
+    Vertex<IT> *FromBase,*ToBase, *nextVertex;
+    IT EdgeFromVertexID,EdgeToVertexID, currentVertexID, nextVertexID;
+    IT nextEdge, matchedEdge;
+    nextEdge = stackEdge;
+    // Necessary because vertices dont know their own index.
+    // It simplifies vector creation..
+    EdgeFromVertexID = Edge<IT,VT>::EdgeFrom(graph,nextEdge);
+    FromBase = Blossom::Base(&vertexVector[EdgeFromVertexID]);
+    // Necessary because vertices dont know their own index.
+    // It simplifies vector creation..
+    EdgeToVertexID = Edge<IT,VT>::EdgeTo(graph,nextEdge);
+    ToBase = Blossom::Base(&vertexVector[EdgeToVertexID]);
+
+    if(ToBase->AgeField > FromBase->AgeField){
+        std::swap(FromBase,ToBase);
+        std::swap(EdgeFromVertexID,EdgeToVertexID);
+    }
+
+    /*
+    * Walk up the alternating tree from vertex V to vertex A, shrinking
+    * the blossoms into a superblossom.  Edges incident to the odd vertices
+    * on the path from V to A are pushed onto stack S, to later search from.
+    */
+    while(FromBase!=ToBase){
+        matchedEdge = FromBase->MatchField;
+        ptrdiff_t FromBase_VertexID = FromBase - &vertexVector[0];
+        nextVertexID = Edge<IT,VT>::Other(graph,matchedEdge,FromBase_VertexID);
+        nextVertex = &vertexVector[nextVertexID];
+        nextVertex->BridgeField = nextEdge;
+        //nextVertex->ShoreField = nextEdge;
+    }
+
+    return nullptr;
+}
+
 
 template <typename IT>
 Vertex<IT>* Blossom::SetUnion(Vertex<IT>* x, Vertex<IT>* y) {
@@ -43,11 +89,6 @@ Vertex<IT>* Blossom::SetUnion(Vertex<IT>* x, Vertex<IT>* y) {
         rootX->RankField++;
         return rootX;
     }
-}
-
-template <typename IT>
-Vertex<IT>* Blossom::Base(Vertex<IT>* x) {
-    return FindSet(x);
 }
 
 // Helper function for path compression
