@@ -2,7 +2,7 @@
 #define BLOSSOM_H
 
 #include "Vertex.h"
-#include "Edge.h"
+//#include "Edge.h"
 
 class Blossom {
     public:
@@ -35,9 +35,9 @@ Vertex<IT>* Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std:
     IT nextEdge, matchedEdge, treeEdge;
 
     nextEdge = stackEdge;
-    EdgeFromVertex = &vertexVector[Edge<IT,VT>::EdgeFrom(graph,nextEdge)];
+    EdgeFromVertex = &vertexVector[Graph<IT,VT>::EdgeFrom(graph,nextEdge)];
     FromBase = Blossom::Base(EdgeFromVertex);
-    EdgeToVertex = &vertexVector[Edge<IT,VT>::EdgeTo(graph,nextEdge)];
+    EdgeToVertex = &vertexVector[Graph<IT,VT>::EdgeTo(graph,nextEdge)];
     ToBase = Blossom::Base(EdgeToVertex);
 
     if(ToBase->AgeField > FromBase->AgeField){
@@ -54,7 +54,7 @@ Vertex<IT>* Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std:
     while(FromBase!=ToBase){
         matchedEdge = FromBase->MatchField;
         ptrdiff_t FromBase_VertexID = FromBase - &vertexVector[0];
-        nextVertex = &vertexVector[Edge<IT,VT>::Other(graph,matchedEdge,FromBase_VertexID)];
+        nextVertex = &vertexVector[Graph<IT,VT>::Other(graph,matchedEdge,FromBase_VertexID)];
         nextVertex->BridgeField = nextEdge;
         ptrdiff_t EdgeFromVertex_VertexID = EdgeFromVertex - &vertexVector[0];
         nextVertex->ShoreField = EdgeFromVertex_VertexID;

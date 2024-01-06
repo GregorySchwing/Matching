@@ -1,8 +1,5 @@
-// Copyright (C) 2023 Adam Lugowski. All rights reserved.
-// Use of this source code is governed by the BSD 2-clause license found in the LICENSE.txt file.
-// SPDX-License-Identifier: BSD-2-Clause
-#ifndef Graph_H
-#define Graph_H
+#ifndef GRAPH2_H
+#define GRAPH2_H
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -13,19 +10,25 @@
 using namespace std::chrono;
 namespace fmm = fast_matrix_market;
 
+#include "Vertex.h"
+//#include "Edge.h"
+#include <list>
+
 template <typename IT, typename VT>
 class Graph {
 public:
-    // Constructor
-    Graph(const std::filesystem::path& in_path) {
-        read_file(in_path);
-    }
-    size_t getN() const{
-        return N;
-    }
-    size_t getM() const{
-        return M;
-    }
+    Graph(const std::filesystem::path& in_path);
+    size_t getN() const;
+    size_t getM() const;
+    static void pushEdgesOntoStack(const Graph<IT, VT>& graph, 
+                                        std::vector<Vertex<IT>> & vertexVector, 
+                                        IT V_index, 
+                                        std::list<IT> &stack,
+                                        IT optionalEdge1=-1,
+                                        IT optionalEdge2=-1);
+    static IT Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId);
+    static IT EdgeFrom(const Graph<IT, VT>& graph, const IT edgeIndex);
+    static IT EdgeTo(const Graph<IT, VT>& graph, const IT edgeIndex);
     // Other member functions...
     std::vector<IT> indptr;
     std::vector<IT> indices;
@@ -33,60 +36,141 @@ public:
     std::vector<IT> original_cols;
     std::vector<VT> original_vals;
     size_t N,M;
-private:
-    void generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex) {
-        rowPtr.resize(numVertices + 1, 0);
-        colIndex.resize(2*rows.size());
-
-        #pragma omp parallel for
-        for (IT i = 0; i < rows.size(); ++i) {
-            #pragma omp atomic
-            rowPtr[rows[i] + 1]++;
-            #pragma omp atomic
-            rowPtr[columns[i] + 1]++;
-        }
-
-        for (IT i = 1; i <= numVertices; ++i) {
-            rowPtr[i] += rowPtr[i - 1];
-        }
-
-        auto rowPtr_duplicate = rowPtr;
-
-        #pragma omp parallel for
-        for (IT i = 0; i < rows.size(); ++i) {
-            IT source = rows[i];
-            IT destination = columns[i];
-
-            IT index;
-            #pragma omp atomic capture
-            index = rowPtr_duplicate[source]++;
-            colIndex[index] = i;
-            #pragma omp atomic capture
-            index = rowPtr_duplicate[destination]++;
-            colIndex[index] = i;
-        }
-    }
-
-    void read_file(const std::filesystem::path& in_path) {
-        fmm::matrix_market_header header;
-        fmm::read_options options;
-        options.generalize_symmetry = false;
-        auto f_to_el_start = high_resolution_clock::now();
-        std::ifstream f(in_path);
-        fmm::read_matrix_market_triplet(f, header, original_rows, original_cols, original_vals, options);
-        auto f_to_el_end = high_resolution_clock::now();
-        auto duration = duration_cast<milliseconds>(f_to_el_end - f_to_el_start);
-        std::cout << "MTX to EdgeList conversion time: "<< duration.count() << " milliseconds" << std::endl;
-        auto el_to_csr_start = high_resolution_clock::now();
-        generateCSR(original_rows, original_cols, header.ncols, indptr, indices);
-        auto el_to_csr_end = high_resolution_clock::now();
-        duration = duration_cast<milliseconds>(el_to_csr_end - el_to_csr_start);
-        // To get the value of duration use the count()
-        // member function on the duration object
-        std::cout << "EdgeList to CSR conversion time: "<< duration.count() << " milliseconds" << std::endl;
-        std::cout << "Undirected general graph |V|: "<< indptr.size()-1 << " |E|: " << indices.size()/2 << std::endl;
-        N = header.ncols;
-        M = header.nnz;
-    }
+private:    
+    void read_file(const std::filesystem::path& in_path);
+    void generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex);
 };
-#endif
+
+// Constructor
+template <typename IT, typename VT>
+Graph<IT,VT>::Graph(const std::filesystem::path& in_path) {
+    read_file(in_path);
+}
+
+template <typename IT, typename VT>
+size_t Graph<IT,VT>::getN() const{
+    return N;
+}
+
+template <typename IT, typename VT>
+size_t Graph<IT,VT>::getM() const{
+    return M;
+}
+
+// Constructor
+template <typename IT, typename VT>
+void Graph<IT,VT>::read_file(const std::filesystem::path& in_path) {
+    fmm::matrix_market_header header;
+    fmm::read_options options;
+    options.generalize_symmetry = false;
+    auto f_to_el_start = high_resolution_clock::now();
+    std::ifstream f(in_path);
+    fmm::read_matrix_market_triplet(f, header, original_rows, original_cols, original_vals, options);
+    auto f_to_el_end = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(f_to_el_end - f_to_el_start);
+    std::cout << "MTX to EdgeList conversion time: "<< duration.count() << " milliseconds" << std::endl;
+    auto el_to_csr_start = high_resolution_clock::now();
+    generateCSR(original_rows, original_cols, header.ncols, indptr, indices);
+    auto el_to_csr_end = high_resolution_clock::now();
+    duration = duration_cast<milliseconds>(el_to_csr_end - el_to_csr_start);
+    // To get the value of duration use the count()
+    // member function on the duration object
+    std::cout << "EdgeList to CSR conversion time: "<< duration.count() << " milliseconds" << std::endl;
+    std::cout << "Undirected general graph |V|: "<< indptr.size()-1 << " |E|: " << indices.size()/2 << std::endl;
+    N = header.ncols;
+    M = header.nnz;
+}
+
+// Constructor
+template <typename IT, typename VT>
+void Graph<IT,VT>::generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex) {
+    rowPtr.resize(numVertices + 1, 0);
+    colIndex.resize(2*rows.size());
+
+    #pragma omp parallel for
+    for (IT i = 0; i < rows.size(); ++i) {
+        #pragma omp atomic
+        rowPtr[rows[i] + 1]++;
+        #pragma omp atomic
+        rowPtr[columns[i] + 1]++;
+    }
+
+    for (IT i = 1; i <= numVertices; ++i) {
+        rowPtr[i] += rowPtr[i - 1];
+    }
+
+    auto rowPtr_duplicate = rowPtr;
+
+    #pragma omp parallel for
+    for (IT i = 0; i < rows.size(); ++i) {
+        IT source = rows[i];
+        IT destination = columns[i];
+
+        IT index;
+        #pragma omp atomic capture
+        index = rowPtr_duplicate[source]++;
+        colIndex[index] = i;
+        #pragma omp atomic capture
+        index = rowPtr_duplicate[destination]++;
+        colIndex[index] = i;
+    }
+}
+
+
+template <typename IT, typename VT>
+void Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
+                                    std::vector<Vertex<IT>> & vertexVector, 
+                                    IT V_index, 
+                                    std::list<IT> &stack,
+                                    IT optionalEdge1,
+                                    IT optionalEdge2){
+    IT nextVertexIndex;
+    Vertex<IT>* nextVertex;
+
+    // Push edges onto stack, breaking if that stackEdge is a solution.
+    for (IT start = graph.indptr[V_index]; start < graph.indptr[V_index + 1]; ++start) {
+        // For blossom contraction, need to skip repushing the matched & tree edges
+        if (graph.indices[start] == optionalEdge1 || graph.indices[start] == optionalEdge2)
+            continue;
+        stack.push_back(graph.indices[start]);
+
+        nextVertexIndex = Graph<IT, VT>::Other(graph, graph.indices[start], V_index);
+
+        nextVertex = &vertexVector[nextVertexIndex];
+        if (!nextVertex->IsReached() && !nextVertex->IsMatched())
+            break;
+    }
+}
+
+// Static method to find the other endpoint of an edge
+template <typename IT, typename VT>
+IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
+    if (edgeIndex < 0 || edgeIndex >= static_cast<IT>(graph.original_rows.size())) {
+        // Handle invalid edge index
+        std::cerr << "Error: Invalid edge index " << edgeIndex<< " vertexId " << vertexId << " graph.original_rows.size() " << graph.original_rows.size() << std::endl;
+        exit(1);
+        return -1; // or throw an exception, depending on your error handling strategy
+    }
+    IT source = graph.original_rows[edgeIndex];
+    IT destination = graph.original_cols[edgeIndex];
+    if (vertexId == source) {
+        return destination;
+    } else {
+        return source;
+    }
+}
+// Static method to find the other endpoint of an edge
+template <typename IT, typename VT>
+IT Graph<IT,VT>::EdgeFrom(const Graph<IT, VT>& graph, const IT edgeIndex) {
+    IT source = graph.original_rows[edgeIndex];
+    return source;
+}
+
+// Static method to find the other endpoint of an edge
+template <typename IT, typename VT>
+IT Graph<IT,VT>::EdgeTo(const Graph<IT, VT>& graph, const IT edgeIndex) {
+    IT destination = graph.original_cols[edgeIndex];
+    return destination;
+}
+
+#endif // GRAPH2_H

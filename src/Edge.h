@@ -2,6 +2,7 @@
 #define EDGE_H
 #include "Enums.h"
 #include <vector>
+#include "Graph.h"
 
 template <typename IT, typename VT>
 class Edge {

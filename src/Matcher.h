@@ -6,7 +6,7 @@
 #include <list>
 #include <unordered_map>
 #include "Enums.h"
-#include "Edge.h"
+////#include "Edge.h"
 #include "Blossom.h"
 
 class Matcher {
@@ -70,11 +70,11 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
         stack.pop_back();
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
-        FromBaseVertexID = Edge<IT,VT>::EdgeFrom(graph,stackEdge);
+        FromBaseVertexID = Graph<IT,VT>::EdgeFrom(graph,stackEdge);
         FromBase = Blossom::Base(&vertexVector[FromBaseVertexID]);
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
-        ToBaseVertexID = Edge<IT,VT>::EdgeTo(graph,stackEdge);
+        ToBaseVertexID = Graph<IT,VT>::EdgeTo(graph,stackEdge);
         ToBase = Blossom::Base(&vertexVector[ToBaseVertexID]);
         // Edge is between two vertices in the same blossom, continue.
         if (FromBase == ToBase)
@@ -97,7 +97,7 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
             ToBase->AgeField=time++;
 
             matchedEdge=ToBase->MatchField;
-            nextVertexIndex = Edge<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+            nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
             nextVertex = &vertexVector[nextVertexIndex];
             nextVertex->LabelField=Label::EvenLabel;
             nextVertex->AgeField=time++;
@@ -105,7 +105,7 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
-            Blossom::Shrink(graph,stackEdge,vertexVector,stack);
+            //Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
     return nullptr;
@@ -128,7 +128,7 @@ void Matcher::pushEdgesOntoStack(const Graph<IT, VT>& graph,
             continue;
         stack.push_back(graph.indices[start]);
 
-        nextVertexIndex = Edge<IT, VT>::Other(graph, graph.indices[start], V_index);
+        nextVertexIndex = Graph<IT, VT>::Other(graph, graph.indices[start], V_index);
 
         nextVertex = &vertexVector[nextVertexIndex];
         if (!nextVertex->IsReached() && !nextVertex->IsMatched())
