@@ -5,7 +5,7 @@ project(fmm_example VERSION 1.0.0)
 add_subdirectory(fast_matrix_market)
 
 # simple example
-add_executable(read1 read_matrix_market.cpp)
+add_executable(read1 main.cpp)
 # Enable OpenMP
 find_package(OpenMP REQUIRED)
 if(OpenMP_CXX_FOUND)
