@@ -4,7 +4,8 @@
 
 #include "Graph.h"
 #include "Matcher.h"
-
+#include <chrono>
+using namespace std::chrono;
 #include <list>
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -21,13 +22,10 @@ int main(int argc, char **argv) {
     Graph<int64_t, std::string>  G(in_path);
     std::vector<int64_t> matching;
     matching.resize(G.getN(),-1);
+    auto match_start = high_resolution_clock::now();
     Matcher::match<int64_t, std::string>(G,matching);
-    //size_t N = indptr.size()-1;
-    //size_t NNZ = indices.size();
-    //printf("Undirected general graph |V|: %ld, |E|: %ld\n", N, NNZ);
-    // Tracks whether a vertex has been in the stack, and which edge is next.
-    //std::vector<int64_t> state(N,0);
-    //std::list<int64_t> K;
-
+    auto match_end = high_resolution_clock::now();
+    auto duration = duration_cast<seconds>(match_end - match_start);
+    std::cout << "Maximum matching time: "<< duration.count() << " seconds" << std::endl;
     return 0;
 }
