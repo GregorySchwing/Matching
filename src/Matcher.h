@@ -57,7 +57,6 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
     IT time = 0;
-    bool Found = false;
     //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
     nextVertex = &vertexVector[V_index];
     nextVertex->AgeField=time++;
@@ -102,8 +101,9 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
             nextVertex->AgeField=time++;
             pushEdgesOntoStack<IT,VT>(graph,vertexVector,nextVertexIndex,stack);
 
-        } else {
+        } else if (ToBase->IsEven()) {
             // Shrink Blossoms
+
         }
     }
     return nullptr;
