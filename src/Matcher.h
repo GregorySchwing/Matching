@@ -13,13 +13,11 @@ class Matcher {
 public:
     template <typename IT, typename VT>
     static void match(const Graph<IT, VT>& graph, 
-                    std::vector<IT>& matching,
                     std::list<IT> &stack,
                     std::vector<Vertex<IT>> & vertexVector);
 private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(const Graph<IT, VT>& graph, 
-                    const std::vector<IT>& matching, 
                     const size_t V_index,
                     std::list<IT> &stack,
                     std::vector<Vertex<IT>> & vertexVector);
@@ -37,16 +35,15 @@ private:
 };
 template <typename IT, typename VT>
 void Matcher::match(const Graph<IT, VT>& graph, 
-                    std::vector<IT>& matching,
                     std::list<IT> &stack,
                     //std::unordered_map<int64_t,Vertex<int64_t>> &vertexMap,
                     std::vector<Vertex<IT>> & vertexVector) {
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
-        if (matching[i] < 0) {
+        if (!vertexVector[i].IsMatched()) {
             // Your matching logic goes here...
-            TailOfAugmentingPath=search(graph,matching,i,stack,vertexVector);
+            TailOfAugmentingPath=search(graph,i,stack,vertexVector);
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
                 augment(graph,TailOfAugmentingPath,vertexVector);
@@ -59,7 +56,6 @@ void Matcher::match(const Graph<IT, VT>& graph,
 }
 template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph, 
-                    const std::vector<IT>& matching, 
                     const size_t V_index,
                     std::list<IT> &stack,
                     //std::unordered_map<int64_t,Vertex<int64_t>> &vertexMap,
@@ -155,11 +151,12 @@ void Matcher::augment(const Graph<IT, VT>& graph,
             TailOfAugmentingPath = nullptr;
     } while (TailOfAugmentingPath != nullptr);
     // Print the list of integers
-    std::cout << "List of Edges:" << std::endl;
-    for (int i : path) {
-        std::cout << i << " ";
+    for (auto E : path) {
+        //Match(EdgeFrom(E)) = E;
+        vertexVector[Graph<IT,VT>::EdgeFrom(graph,E)].MatchField=E;
+        //Match(EdgeTo(E)) = E;
+        vertexVector[Graph<IT,VT>::EdgeTo(graph,E)].MatchField=E;
     }
-    std::cout << std::endl;
 }
 
 
