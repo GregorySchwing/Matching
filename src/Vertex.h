@@ -7,8 +7,8 @@ class Vertex {
 public:
     // Blossoms will be contracted by updating this pointer and RankField
     Vertex<IT>* ParentField;
+    Vertex<IT>* BaseField;
     IT RankField;
-
     IT TreeField;
     IT BridgeField;
     IT ShoreField;
@@ -17,18 +17,19 @@ public:
 
     // Constructor
     Vertex(IT age,short int Label)
-        : ParentField(this), RankField(0), TreeField(-1),
+        : ParentField(this), BaseField(this), RankField(0), TreeField(-1),
           BridgeField(-1), ShoreField(-1), LabelField(Label), AgeField(age) {}
 
     // Copy constructor
     Vertex(const Vertex& other)
-        : ParentField(other.ParentField), RankField(other.RankField),
-          TreeField(other.TreeField), BridgeField(other.BridgeField),
-          ShoreField(other.ShoreField), LabelField(other.LabelField),
-          AgeField(other.AgeField) {}
+        : ParentField(other.ParentField), BaseField(other.BaseField), 
+          RankField(other.RankField), TreeField(other.TreeField), 
+          BridgeField(other.BridgeField),ShoreField(other.ShoreField), 
+          LabelField(other.LabelField),AgeField(other.AgeField) {}
+          
 
     // Default constructor
-    Vertex() : ParentField(this), RankField(0), TreeField(-1),
+    Vertex() : ParentField(this), BaseField(this), RankField(0), TreeField(-1),
           BridgeField(-1), ShoreField(-1), LabelField(Label::UnreachedLabel), AgeField(-1) {}
     
     // Method to check if the vertex is reached

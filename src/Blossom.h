@@ -25,7 +25,7 @@ class Blossom {
 
 template <typename IT>
 Vertex<IT>* Blossom::Base(Vertex<IT>* x) {
-    return FindSet(x);
+    return FindSet(x)->BaseField;
 }
 
 template <typename IT, typename VT>
@@ -112,6 +112,7 @@ Vertex<IT>* Blossom::SetUnion(Vertex<IT>* x, Vertex<IT>* y) {
     // Perform Union by rank
     if (rootX->RankField < rootY->RankField) {
         rootX->ParentField = rootY;
+        rootY->BaseField = rootX->BaseField;
         return rootY;
     } else if (rootX->RankField > rootY->RankField) {
         rootY->ParentField = rootX;

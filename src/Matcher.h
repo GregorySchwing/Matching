@@ -53,6 +53,7 @@ void Matcher::match(Graph<IT, VT>& graph,
                 augment(graph,TailOfAugmentingPath,vertexVector);
                 for (auto V : tree) {
                     vertexVector[V].ParentField=&vertexVector[V];
+                    vertexVector[V].BaseField=&vertexVector[V];
                     vertexVector[V].RankField=0;
                     vertexVector[V].TreeField=-1;
                     vertexVector[V].BridgeField=-1;
@@ -131,7 +132,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
-            //Blossom::Shrink(graph,stackEdge,vertexVector,stack);
+            Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
     return nullptr;
