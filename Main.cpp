@@ -31,6 +31,7 @@ int main(int argc, char **argv) {
     // pointers of the list nodes are re-pointed.
     // https://en.cppreference.com/w/cpp/container/list/splice
     std::list<int64_t> stack;
+    std::list<int64_t> tree;
     auto allocate_start = high_resolution_clock::now();
     G.matching.resize(G.getN(),-1);
     vertexVector.resize(G.getN());
@@ -38,7 +39,7 @@ int main(int argc, char **argv) {
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "|V|-vector memory allocation time: "<< duration_alloc.count() << " milliseconds" << std::endl;
     auto match_start = high_resolution_clock::now();
-    Matcher::match<int64_t, std::string>(G,stack,vertexVector);
+    Matcher::match<int64_t, std::string>(G,stack,tree,vertexVector);
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<seconds>(match_end - match_start);
     std::cout << "Maximum matching time: "<< duration.count() << " seconds" << std::endl;
