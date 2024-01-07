@@ -42,6 +42,11 @@ public:
         return LabelField == Label::EvenLabel;
     }
 
+    // Method to check if the vertex is reached
+    bool IsOdd() const {
+        return LabelField == Label::OddLabel;
+    }
+    
     // Method to check if the vertex is matched
     bool IsMatched() const {
         return MatchField >= 0;

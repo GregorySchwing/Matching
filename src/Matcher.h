@@ -29,11 +29,10 @@ private:
                     Vertex<IT> * TailOfAugmentingPath,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
-    static void path(const Graph<IT, VT>& graph, 
-                        std::vector<IT>& matching, 
+    static void pathThroughBlossom(const Graph<IT, VT>& graph, 
                         // V
-                        Vertex<IT> * TailOfAugmentingPath,
-                        Vertex<IT> * TailOfAugmentingPathBase,
+                        const Vertex<IT> * TailOfAugmentingPath,
+                        const Vertex<IT> * TailOfAugmentingPathBase,
                         std::vector<Vertex<IT>> & vertexVector,
                         std::list<IT> & path);
 };
@@ -146,7 +145,8 @@ void Matcher::augment(const Graph<IT, VT>& graph,
         //B = Base(Blossom(W));
         nextVertexBase = Blossom::Base(nextVertex); 
         
-        //Path(W, B, P);
+        // Path(W, B, P);
+        pathThroughBlossom(graph,nextVertex,nextVertexBase,vertexVector,path);
 
         //V = Other(Match(B), B);
     } while (TailOfAugmentingPath != nullptr);
@@ -154,14 +154,60 @@ void Matcher::augment(const Graph<IT, VT>& graph,
 
 
 template <typename IT, typename VT>
-void Matcher::path(const Graph<IT, VT>& graph, 
-                    std::vector<IT>& matching, 
+void Matcher::pathThroughBlossom(const Graph<IT, VT>& graph, 
                     // V
-                    Vertex<IT> * TailOfAugmentingPath,
-                    Vertex<IT> * TailOfAugmentingPathBase,
+                    const Vertex<IT> * TailOfAugmentingPath,
+                    const Vertex<IT> * TailOfAugmentingPathBase,
                     std::vector<Vertex<IT>> & vertexVector,
                     std::list<IT> & path) {
+    // W
+    Vertex<IT>*nextVertex;
+    // if (V != B)
+    if (TailOfAugmentingPath != TailOfAugmentingPathBase)
+    {
+        if (TailOfAugmentingPath->IsOdd())
+        {
+            // Path(Shore(V), Other(Match(V), V), P);
+            ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            pathThroughBlossom(graph,
+                                &vertexVector[TailOfAugmentingPath->ShoreField],
+                                &vertexVector[Graph<IT,VT>::Other(graph,TailOfAugmentingPath->MatchField,TailOfAugmentingPath_VertexID)],
+                                vertexVector,
+                                path);
+            //ListPut(Bridge(V), P);
+            path.push_back(TailOfAugmentingPath->BridgeField);
+            
+            //Path(Other(Bridge(V), Shore(V)), B, P);
+            pathThroughBlossom(graph,
+                                &vertexVector[Graph<IT,VT>::Other(graph,TailOfAugmentingPath->BridgeField,TailOfAugmentingPath->ShoreField)],
+                                TailOfAugmentingPathBase,
+                                vertexVector,
+                                path);
+        }
+        else if (TailOfAugmentingPath->IsEven())
+        {
+            //W = Other(Match(V), V);
+            ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            nextVertex=&vertexVector[Graph<IT,VT>::Other(graph,TailOfAugmentingPath->MatchField,TailOfAugmentingPath_VertexID)];
+            
+            //ListPut(Tree(W), P);
+            path.push_back(nextVertex->Tree);
 
+            //Path(Other(Tree(W), W), B, P);
+            ptrdiff_t nextVertex_VertexID = nextVertex - &vertexVector[0];
+            pathThroughBlossom(graph,
+                                &vertexVector[Graph<IT,VT>::Other(graph,nextVertex->Tree,nextVertex_VertexID)],
+                                TailOfAugmentingPathBase,
+                                vertexVector,
+                                path);
+        }
+        else{
+            ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            ptrdiff_t TailOfAugmentingPathBase_VertexID = TailOfAugmentingPathBase - &vertexVector[0];
+            std::cerr << "(Path) Internal error. TailOfAugmentingPath_VertexID: " << TailOfAugmentingPath_VertexID<< " TailOfAugmentingPathBase_VertexID: " << TailOfAugmentingPathBase_VertexID << std::endl;
+            exit(1);
+        }
+    }
 }
 
 
