@@ -14,12 +14,14 @@ public:
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph, 
                     std::list<IT> &stack,
+                    std::list<IT> &tree,
                     std::vector<Vertex<IT>> & vertexVector);
 private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     std::list<IT> &stack,
+                    std::list<IT> &tree,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
@@ -36,24 +38,33 @@ private:
 template <typename IT, typename VT>
 void Matcher::match(Graph<IT, VT>& graph, 
                     std::list<IT> &stack,
-                    //std::unordered_map<int64_t,Vertex<int64_t>> &vertexMap,
+                    std::list<IT> &tree,
                     std::vector<Vertex<IT>> & vertexVector) {
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
         if (graph.matching[i] < 0) {
-            printf("SEARCHING FROM %ld!\n",i);
+            //printf("SEARCHING FROM %ld!\n",i);
 
             // Your matching logic goes here...
-            TailOfAugmentingPath=search(graph,i,stack,vertexVector);
+            TailOfAugmentingPath=search(graph,i,stack,tree,vertexVector);
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
                 augment(graph,TailOfAugmentingPath,vertexVector);
-                vertexVector.clear();
-                vertexVector.resize(graph.getN());
-                printf("FOUND AP!\n");
+                for (auto V : tree) {
+                    vertexVector[V].ParentField=&vertexVector[V];
+                    vertexVector[V].RankField=0;
+                    vertexVector[V].TreeField=-1;
+                    vertexVector[V].BridgeField=-1;
+                    vertexVector[V].ShoreField=-1;
+                    vertexVector[V].LabelField=Label::UnreachedLabel;
+                    vertexVector[V].AgeField=-1;
+                }
+                stack.clear();
+                tree.clear();
+                //printf("FOUND AP!\n");
             } else {
-                printf("DIDNT FOUND AP!\n");
+                //printf("DIDNT FOUND AP!\n");
             }
         }
     }
@@ -62,7 +73,7 @@ template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     std::list<IT> &stack,
-                    //std::unordered_map<int64_t,Vertex<int64_t>> &vertexMap,
+                    std::list<IT> &tree,
                     std::vector<Vertex<IT>> & vertexVector) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
     int64_t FromBaseVertexID,ToBaseVertexID;
@@ -71,6 +82,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     IT time = 0;
     //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
     nextVertex = &vertexVector[V_index];
+    tree.push_back(V_index);
     nextVertex->AgeField=time++;
     nextVertex->LabelField=Label::EvenLabel;
     // Push edges onto stack, breaking if that stackEdge is a solution.
@@ -98,6 +110,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
             ToBase->LabelField=Label::OddLabel;
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
+            tree.push_back(ToBaseVertexID);
             graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
             return ToBase;
@@ -105,16 +118,20 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
             ToBase->LabelField=Label::OddLabel;
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
+            tree.push_back(ToBaseVertexID);
+
             matchedEdge=graph.GetMatchField(ToBaseVertexID);
             nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
             nextVertex = &vertexVector[nextVertexIndex];
             nextVertex->LabelField=Label::EvenLabel;
             nextVertex->AgeField=time++;
+            tree.push_back(nextVertexIndex);
+
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack);
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
-            Blossom::Shrink(graph,stackEdge,vertexVector,stack);
+            //Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
     return nullptr;
