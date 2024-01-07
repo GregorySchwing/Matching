@@ -20,6 +20,9 @@ public:
     Graph(const std::filesystem::path& in_path);
     size_t getN() const;
     size_t getM() const;
+    bool IsMatched(size_t index) const;
+    IT GetMatchField(size_t index) const;
+    void SetMatchField(size_t index,IT edge);
     static bool pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                         std::vector<Vertex<IT>> & vertexVector, 
                                         IT V_index, 
@@ -36,6 +39,8 @@ public:
     std::vector<IT> original_cols;
     std::vector<VT> original_vals;
     size_t N,M;
+    std::vector<IT> matching;
+
 private:    
     void read_file(const std::filesystem::path& in_path);
     void generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex);
@@ -55,6 +60,22 @@ size_t Graph<IT,VT>::getN() const{
 template <typename IT, typename VT>
 size_t Graph<IT,VT>::getM() const{
     return M;
+}
+
+
+template <typename IT, typename VT>
+bool Graph<IT,VT>::IsMatched(size_t index) const{
+    return matching[index]>-1;
+}
+
+template <typename IT, typename VT>
+IT Graph<IT,VT>::GetMatchField(size_t index) const{
+    return matching[index];
+}
+
+template <typename IT, typename VT>
+void Graph<IT,VT>::SetMatchField(size_t index,IT edge){
+    matching[index]=edge;
 }
 
 // Constructor
@@ -136,7 +157,7 @@ bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph,
         nextVertexIndex = Graph<IT, VT>::Other(graph, graph.indices[start], V_index);
 
         nextVertex = &vertexVector[nextVertexIndex];
-        if (!nextVertex->IsReached() && !nextVertex->IsMatched())
+        if (!nextVertex->IsReached() && !graph.IsMatched(nextVertexIndex))
             return true;
     }
     return false;

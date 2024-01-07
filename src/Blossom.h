@@ -65,11 +65,11 @@ void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector
     bool Found = false;
     while(FromBase!=ToBase){
         IT matchedEdge, treeEdge;
+        ptrdiff_t FromBase_VertexID = FromBase - &vertexVector[0];
         // M = Match(B);
-        matchedEdge = FromBase->MatchField;
+        matchedEdge = graph.GetMatchField(FromBase_VertexID);
 
         // W = Other(M, B);
-        ptrdiff_t FromBase_VertexID = FromBase - &vertexVector[0];
         EdgeToVertex = &vertexVector[Graph<IT,VT>::Other(graph,matchedEdge,FromBase_VertexID)];
         
         // Bridge(W) = E;
