@@ -42,5 +42,8 @@ int main(int argc, char **argv) {
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<seconds>(match_end - match_start);
     std::cout << "Maximum matching time: "<< duration.count() << " seconds" << std::endl;
+    auto count = std::count_if(G.matching.begin(), G.matching.end(),[&](auto const& val){ return val > -1; });
+    std::cout << "Maximum matching size: "<<  count/2 << std::endl;
+
     return 0;
 }
