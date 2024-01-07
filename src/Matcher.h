@@ -42,13 +42,15 @@ void Matcher::match(Graph<IT, VT>& graph,
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
         if (graph.matching[i] < 0) {
+            printf("SEARCHING FROM %ld!\n",i);
+
             // Your matching logic goes here...
             TailOfAugmentingPath=search(graph,i,stack,vertexVector);
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
                 augment(graph,TailOfAugmentingPath,vertexVector);
                 vertexVector.clear();
-                std::fill(vertexVector.begin(),vertexVector.end(),Vertex<IT>{});
+                vertexVector.resize(graph.getN());
                 printf("FOUND AP!\n");
             } else {
                 printf("DIDNT FOUND AP!\n");
