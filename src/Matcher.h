@@ -16,6 +16,7 @@ public:
                     std::vector<IT>& matching,
                     std::list<IT> &stack,
                     std::vector<Vertex<IT>> & vertexVector);
+private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(const Graph<IT, VT>& graph, 
                     const std::vector<IT>& matching, 
@@ -27,6 +28,14 @@ public:
                     std::vector<IT>& matching, 
                     Vertex<IT> * TailOfAugmentingPath,
                     std::vector<Vertex<IT>> & vertexVector);
+    template <typename IT, typename VT>
+    static void path(const Graph<IT, VT>& graph, 
+                        std::vector<IT>& matching, 
+                        // V
+                        Vertex<IT> * TailOfAugmentingPath,
+                        Vertex<IT> * TailOfAugmentingPathBase,
+                        std::vector<Vertex<IT>> & vertexVector,
+                        std::list<IT> & path);
 };
 template <typename IT, typename VT>
 void Matcher::match(const Graph<IT, VT>& graph, 
@@ -116,18 +125,44 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 void Matcher::augment(const Graph<IT, VT>& graph, 
                     std::vector<IT>& matching, 
+                    // V
                     Vertex<IT> * TailOfAugmentingPath,
                     std::vector<Vertex<IT>> & vertexVector) {
+    std::list<IT> path;
+    IT edge;
+    // W
+    Vertex<IT>*nextVertex;
+    Vertex<IT>*nextVertexBase;
     do
     {
         //ListPut(Tree(V), P);
+        edge = TailOfAugmentingPath->TreeField;
+        path.push_back(edge);
 
         //W = Other(Tree(V), V);
+        ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+        nextVertex = &vertexVector[Graph<IT,VT>::Other(graph,edge,TailOfAugmentingPath_VertexID)];
+
         //B = Base(Blossom(W));
+        nextVertexBase = Blossom::Base(nextVertex); 
+        
         //Path(W, B, P);
 
         //V = Other(Match(B), B);
     } while (TailOfAugmentingPath != nullptr);
 }
+
+
+template <typename IT, typename VT>
+void Matcher::path(const Graph<IT, VT>& graph, 
+                    std::vector<IT>& matching, 
+                    // V
+                    Vertex<IT> * TailOfAugmentingPath,
+                    Vertex<IT> * TailOfAugmentingPathBase,
+                    std::vector<Vertex<IT>> & vertexVector,
+                    std::list<IT> & path) {
+
+}
+
 
 #endif
