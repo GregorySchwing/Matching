@@ -25,7 +25,6 @@ private:
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
     static void augment(const Graph<IT, VT>& graph, 
-                    std::vector<IT>& matching, 
                     Vertex<IT> * TailOfAugmentingPath,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
@@ -50,6 +49,7 @@ void Matcher::match(const Graph<IT, VT>& graph,
             TailOfAugmentingPath=search(graph,matching,i,stack,vertexVector);
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
+                augment(graph,TailOfAugmentingPath,vertexVector);
                 printf("FOUND AP!\n");
             } else {
                 printf("DIDNT FOUND AP!\n");
@@ -123,7 +123,6 @@ Vertex<IT> * Matcher::search(const Graph<IT, VT>& graph,
 
 template <typename IT, typename VT>
 void Matcher::augment(const Graph<IT, VT>& graph, 
-                    std::vector<IT>& matching, 
                     // V
                     Vertex<IT> * TailOfAugmentingPath,
                     std::vector<Vertex<IT>> & vertexVector) {
@@ -149,7 +148,15 @@ void Matcher::augment(const Graph<IT, VT>& graph,
         pathThroughBlossom(graph,nextVertex,nextVertexBase,vertexVector,path);
 
         //V = Other(Match(B), B);
+        ptrdiff_t nextVertexBase_VertexID = nextVertexBase - &vertexVector[0];
+        TailOfAugmentingPath = &vertexVector[Graph<IT,VT>::Other(graph,nextVertexBase->MatchField,nextVertexBase_VertexID)];
     } while (TailOfAugmentingPath != nullptr);
+    // Print the list of integers
+    std::cout << "List of Edges:" << std::endl;
+    for (int i : path) {
+        std::cout << i << " ";
+    }
+    std::cout << std::endl;
 }
 
 
@@ -191,12 +198,12 @@ void Matcher::pathThroughBlossom(const Graph<IT, VT>& graph,
             nextVertex=&vertexVector[Graph<IT,VT>::Other(graph,TailOfAugmentingPath->MatchField,TailOfAugmentingPath_VertexID)];
             
             //ListPut(Tree(W), P);
-            path.push_back(nextVertex->Tree);
+            path.push_back(nextVertex->TreeField);
 
             //Path(Other(Tree(W), W), B, P);
             ptrdiff_t nextVertex_VertexID = nextVertex - &vertexVector[0];
             pathThroughBlossom(graph,
-                                &vertexVector[Graph<IT,VT>::Other(graph,nextVertex->Tree,nextVertex_VertexID)],
+                                &vertexVector[Graph<IT,VT>::Other(graph,nextVertex->TreeField,nextVertex_VertexID)],
                                 TailOfAugmentingPathBase,
                                 vertexVector,
                                 path);
