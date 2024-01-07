@@ -149,7 +149,10 @@ void Matcher::augment(const Graph<IT, VT>& graph,
 
         //V = Other(Match(B), B);
         ptrdiff_t nextVertexBase_VertexID = nextVertexBase - &vertexVector[0];
-        TailOfAugmentingPath = &vertexVector[Graph<IT,VT>::Other(graph,nextVertexBase->MatchField,nextVertexBase_VertexID)];
+        if (nextVertexBase->MatchField>-1)
+            TailOfAugmentingPath = &vertexVector[Graph<IT,VT>::Other(graph,nextVertexBase->MatchField,nextVertexBase_VertexID)];
+        else 
+            TailOfAugmentingPath = nullptr;
     } while (TailOfAugmentingPath != nullptr);
     // Print the list of integers
     std::cout << "List of Edges:" << std::endl;
