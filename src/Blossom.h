@@ -2,7 +2,7 @@
 #define BLOSSOM_H
 
 #include "Vertex.h"
-//#include "Edge.h"
+#include "Stack.h"
 
 class Blossom {
     public:
@@ -17,7 +17,7 @@ class Blossom {
                             const IT stackEdge, 
                             DisjointSetUnion<IT> &dsu,
                             std::vector<Vertex<IT>> & vertexVector, 
-                            std::list<IT> &stack);
+                            Stack<IT> &stack);
     private:
 
         // Helper function for path compression
@@ -44,7 +44,7 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
                     const IT stackEdge, 
                     DisjointSetUnion<IT> &dsu,
                     std::vector<Vertex<IT>> & vertexVector, 
-                    std::list<IT> &stack){
+                    Stack<IT> &stack){
     // V,W
     IT EdgeFromVertexID,EdgeToVertexID;
     Vertex<IT> *EdgeToVertex;

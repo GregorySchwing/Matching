@@ -8,20 +8,19 @@
 #include "Enums.h"
 #include "DSU.h"
 #include "Blossom.h"
+#include "Stack.h"
 
 class Matcher {
 public:
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph, 
-                    std::list<IT> &stack,
-                    std::list<IT> &tree,
                     std::vector<Vertex<IT>> & vertexVector);
 private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
                     const size_t V_index,
-                    std::list<IT> &stack,
-                    std::list<IT> &tree,
+                    Stack<IT> &stack,
+                    Stack<IT> &tree,
                      DisjointSetUnion<IT> &dsu,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
@@ -39,11 +38,11 @@ private:
 };
 template <typename IT, typename VT>
 void Matcher::match(Graph<IT, VT>& graph, 
-                    std::list<IT> &stack,
-                    std::list<IT> &tree,
                     std::vector<Vertex<IT>> & vertexVector) {
     DisjointSetUnion<IT> dsu;
     dsu.reset(graph.getN());
+    Stack<IT> tree(graph.getN());
+    Stack<IT> stack(graph.getM());
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
@@ -54,6 +53,7 @@ void Matcher::match(Graph<IT, VT>& graph,
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
                 augment(graph,TailOfAugmentingPath,dsu,vertexVector);
+                
                 for (auto V : tree) {
                     vertexVector[V].TreeField=-1;
                     vertexVector[V].BridgeField=-1;
@@ -78,8 +78,8 @@ void Matcher::match(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
                     const size_t V_index,
-                    std::list<IT> &stack,
-                    std::list<IT> &tree,
+                    Stack<IT> &stack,
+                    Stack<IT> &tree,
                      DisjointSetUnion<IT> &dsu,
                     std::vector<Vertex<IT>> & vertexVector) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
