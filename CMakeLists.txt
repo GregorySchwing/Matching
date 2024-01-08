@@ -5,6 +5,12 @@ project(fmm_example VERSION 1.0.0)
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 
+if (NOT EXISTS ${CMAKE_BINARY_DIR}/CMakeCache.txt)
+  if (NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
+  endif()
+endif()
+
 # include fast_matrix_market
 add_subdirectory(fast_matrix_market)
 
