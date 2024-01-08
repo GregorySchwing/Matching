@@ -7,6 +7,8 @@
 #include <vector>
 #include <fast_matrix_market/fast_matrix_market.hpp>
 #include <chrono>
+#include <signal.h>
+
 using namespace std::chrono;
 namespace fmm = fast_matrix_market;
 
@@ -169,7 +171,7 @@ IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT 
     if (edgeIndex < 0 || edgeIndex >= static_cast<IT>(graph.original_rows.size())) {
         // Handle invalid edge index
         std::cerr << "Error: Invalid edge index " << edgeIndex<< " vertexId " << vertexId << " graph.original_rows.size() " << graph.original_rows.size() << std::endl;
-        exit(1);
+        raise(SIGSEGV);
         return -1; // or throw an exception, depending on your error handling strategy
     }
     IT source = graph.original_rows[edgeIndex];

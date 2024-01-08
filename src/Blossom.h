@@ -61,8 +61,12 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
     EdgeToVertexID = Graph<IT,VT>::EdgeTo(graph,nextEdge);
     // B = Base(X);
     FromBaseID = dsu[EdgeFromVertexID];
+    FromBase = &vertexVector[FromBaseID];
+
     // A = Base(Y);
     ToBaseID = dsu[EdgeToVertexID];
+    ToBase = &vertexVector[ToBaseID];
+
 
     // if (Age(A) > Age(B))
     if(ToBase->AgeField > FromBase->AgeField){
@@ -113,7 +117,7 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
         EdgeFromVertexID = Graph<IT,VT>::Other(graph,nextEdge,ToBaseID);
         // Y = Blossom(V);
         // X = SetUnion(Y, X);
-        dsu.linkTo(ToBaseID,EdgeFromVertexID);
+        dsu.linkTo(ToBaseID,dsu[EdgeFromVertexID]);
         // B = Base(X);
         FromBaseID=dsu[EdgeFromVertexID];
     }
