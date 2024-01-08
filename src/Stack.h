@@ -72,13 +72,16 @@ void Stack<IT>::push_back(const IT& val) {
 // Method to pop an element from the stack
 template <typename IT>
 IT Stack<IT>::back() {
-    return data[top];
+    if (top)
+    return data[top-1];
+    else 
+    throw std::underflow_error("Stack empty");
 }
 
 // Method to pop an element from the stack
 template <typename IT>
 bool Stack<IT>::empty() {
-    return top>0;
+    return !top;
 }
 
 // Method to pop an element from the stack

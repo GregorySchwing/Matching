@@ -53,6 +53,7 @@ void Matcher::match(Graph<IT, VT>& graph,
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
                 augment(graph,TailOfAugmentingPath,dsu,vertexVector);
+                
                 for (auto V : tree) {
                     vertexVector[V].TreeField=-1;
                     vertexVector[V].BridgeField=-1;
