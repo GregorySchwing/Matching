@@ -10,7 +10,7 @@ public:
     T operator[](const T& a);
     void linkTo(T a, T b);
 
-private:
+//private:
     std::vector<T> link;
     std::vector<T> directParent;
     std::vector<T> size;

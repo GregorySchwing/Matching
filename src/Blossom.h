@@ -13,7 +13,11 @@ class Blossom {
         static Vertex<IT>* Root(Vertex<IT>* x);
         // Static method to find the root of a vertex
         template <typename IT, typename VT>
-        static void Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack);
+        static void Shrink(const Graph<IT, VT>& graph, 
+                            const IT stackEdge, 
+                            DisjointSetUnion<IT> &dsu,
+                            std::vector<Vertex<IT>> & vertexVector, 
+                            std::list<IT> &stack);
     private:
 
         // Helper function for path compression
@@ -36,35 +40,34 @@ Vertex<IT>* Blossom::Base(Vertex<IT>* x) {
 }
 
 template <typename IT, typename VT>
-void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack){
+void Blossom::Shrink(const Graph<IT, VT>& graph, 
+                    const IT stackEdge, 
+                    DisjointSetUnion<IT> &dsu,
+                    std::vector<Vertex<IT>> & vertexVector, 
+                    std::list<IT> &stack){
     // V,W
+    IT EdgeFromVertexID,EdgeToVertexID;
     Vertex<IT> *EdgeFromVertex,*EdgeToVertex;
-    // X,Y
-    Vertex<IT> *FromRoot,*ToRoot;
     // A,B
+    IT FromBaseID,ToBaseID,OriginalBaseID;
     Vertex<IT> *FromBase,*ToBase;
     // E
     IT nextEdge;
 
     nextEdge = stackEdge;
     // V = EdgeFrom(E);
-    EdgeFromVertex = &vertexVector[Graph<IT,VT>::EdgeFrom(graph,nextEdge)];
+    EdgeFromVertexID = Graph<IT,VT>::EdgeFrom(graph,nextEdge);
     // W = EdgeTo(E);
-    EdgeToVertex = &vertexVector[Graph<IT,VT>::EdgeTo(graph,nextEdge)];
-    // X = Blossom(V);
-    FromRoot = Blossom::Root(EdgeFromVertex);
-    // Y = Blossom(W);
-    ToRoot = Blossom::Root(EdgeToVertex);
+    EdgeToVertexID = Graph<IT,VT>::EdgeTo(graph,nextEdge);
     // B = Base(X);
-    FromBase = Blossom::Base(FromRoot);
+    FromBaseID = dsu[EdgeFromVertexID];
     // A = Base(Y);
-    ToBase = Blossom::Base(ToRoot);
+    ToBaseID = dsu[EdgeToVertexID];
 
     // if (Age(A) > Age(B))
     if(ToBase->AgeField > FromBase->AgeField){
-        std::swap(FromBase,ToBase);
-        std::swap(FromRoot,ToRoot);
-        std::swap(EdgeFromVertex,EdgeToVertex);
+        std::swap(FromBaseID,ToBaseID);
+        std::swap(EdgeFromVertexID,EdgeToVertexID);
     }
 
     /*
@@ -74,46 +77,45 @@ void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector
     */
     bool Found = false;
     // while (B != A)
-    while(FromBase!=ToBase){
+    OriginalBaseID = ToBaseID;
+    while(FromBaseID!=OriginalBaseID){
         IT matchedEdge, treeEdge;
-        ptrdiff_t FromBase_VertexID = FromBase - &vertexVector[0];
         // M = Match(B);
-        matchedEdge = graph.GetMatchField(FromBase_VertexID);
+        matchedEdge = graph.GetMatchField(FromBaseID);
 
         // W = Other(M, B);
-        EdgeToVertex = &vertexVector[Graph<IT,VT>::Other(graph,matchedEdge,FromBase_VertexID)];
+        EdgeToVertexID = Graph<IT,VT>::Other(graph,matchedEdge,FromBaseID);
+        EdgeToVertex = &vertexVector[EdgeToVertexID];
         
         // Bridge(W) = E;
         EdgeToVertex->BridgeField = nextEdge;
 
         // Shore(W) = V;
-        ptrdiff_t EdgeFromVertex_VertexID = EdgeFromVertex - &vertexVector[0];
-        EdgeToVertex->ShoreField = EdgeFromVertex_VertexID;
+        EdgeToVertex->ShoreField = EdgeFromVertexID;
 
         // T = Tree(W);
         treeEdge = EdgeToVertex->TreeField;
         if (treeEdge < 0){
             printf("MASSIVE ERROR!!!\n");
         }
-        ptrdiff_t EdgeToVertex_VertexID = EdgeToVertex - &vertexVector[0];
         if (!Found){
-            Found = Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,EdgeToVertex_VertexID,stack,matchedEdge,treeEdge);
+            Found = Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,EdgeToVertexID,stack,matchedEdge,treeEdge);
         }
 
         // Little unsure of this logic.
         // Y = Blossom(W);
-        ToRoot = Blossom::Root(EdgeToVertex);
+        ToBaseID = dsu[EdgeToVertexID];
         // X = SetUnion(Y, X);
-        FromRoot = SetUnion(ToRoot, FromRoot);
+        dsu.linkTo(FromBaseID,ToBaseID);
         // E = T;
         nextEdge = treeEdge;
         // V = Other(E, W);
-        EdgeFromVertex = &vertexVector[Graph<IT,VT>::Other(graph,nextEdge,EdgeToVertex_VertexID)];
-
+        EdgeFromVertexID = Graph<IT,VT>::Other(graph,nextEdge,ToBaseID);
         // Y = Blossom(V);
-        ToRoot = Blossom::Root(EdgeFromVertex);
-        FromRoot = SetUnion(ToBase, FromRoot);
-        FromBase = Blossom::Base(FromRoot);
+        // X = SetUnion(Y, X);
+        dsu.linkTo(ToBaseID,EdgeFromVertexID);
+        // B = Base(X);
+        FromBaseID=dsu[EdgeFromVertexID];
     }
 }
 

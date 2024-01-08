@@ -22,10 +22,12 @@ private:
                     const size_t V_index,
                     std::list<IT> &stack,
                     std::list<IT> &tree,
+                     DisjointSetUnion<IT> &dsu,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
+                     DisjointSetUnion<IT> &dsu,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
     static void pathThroughBlossom(Graph<IT, VT>& graph, 
@@ -47,21 +49,20 @@ void Matcher::match(Graph<IT, VT>& graph,
     for (std::size_t i = 0; i < graph.getN(); ++i) {
         if (graph.matching[i] < 0) {
             //printf("SEARCHING FROM %ld!\n",i);
-
             // Your matching logic goes here...
-            TailOfAugmentingPath=search(graph,i,stack,tree,vertexVector);
+            TailOfAugmentingPath=search(graph,i,stack,tree,dsu,vertexVector);
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
-                augment(graph,TailOfAugmentingPath,vertexVector);
+                augment(graph,TailOfAugmentingPath,dsu,vertexVector);
                 for (auto V : tree) {
-                    vertexVector[V].ParentField=&vertexVector[V];
-                    vertexVector[V].BaseField=&vertexVector[V];
-                    vertexVector[V].RankField=0;
                     vertexVector[V].TreeField=-1;
                     vertexVector[V].BridgeField=-1;
                     vertexVector[V].ShoreField=-1;
-                    vertexVector[V].LabelField=Label::UnreachedLabel;
                     vertexVector[V].AgeField=-1;
+                    dsu.link[V]=V;
+                    dsu.directParent[V]=-1;
+                    dsu.groupRoot[V]=V;
+                    dsu.size[V]=1;
                 }
                 stack.clear();
                 tree.clear();
@@ -79,6 +80,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
                     const size_t V_index,
                     std::list<IT> &stack,
                     std::list<IT> &tree,
+                     DisjointSetUnion<IT> &dsu,
                     std::vector<Vertex<IT>> & vertexVector) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
     int64_t FromBaseVertexID,ToBaseVertexID;
@@ -96,13 +98,13 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
         stack.pop_back();
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
-        FromBase = Blossom::Base(&vertexVector[Graph<IT,VT>::EdgeFrom(graph,stackEdge)]);
-        FromBaseVertexID = FromBase - &vertexVector[0];
+        FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
+        FromBase = &vertexVector[FromBaseVertexID];
 
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
-        ToBase = Blossom::Base(&vertexVector[Graph<IT,VT>::EdgeTo(graph,stackEdge)]);
-        ToBaseVertexID = ToBase - &vertexVector[0];
+        ToBaseVertexID = dsu[Graph<IT,VT>::EdgeTo(graph,stackEdge)];
+        ToBase = &vertexVector[ToBaseVertexID];
 
         // Edge is between two vertices in the same blossom, continue.
         if (FromBase == ToBase)
@@ -134,7 +136,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
-            Blossom::Shrink(graph,stackEdge,vertexVector,stack);
+            Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
         }
     }
     return nullptr;
@@ -142,8 +144,8 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
 
 template <typename IT, typename VT>
 void Matcher::augment(Graph<IT, VT>& graph, 
-                    // V
                     Vertex<IT> * TailOfAugmentingPath,
+                     DisjointSetUnion<IT> &dsu,
                     std::vector<Vertex<IT>> & vertexVector) {
     std::list<IT> path;
     IT edge;
@@ -158,10 +160,12 @@ void Matcher::augment(Graph<IT, VT>& graph,
 
         //W = Other(Tree(V), V);
         ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
-        nextVertex = &vertexVector[Graph<IT,VT>::Other(graph,edge,TailOfAugmentingPath_VertexID)];
+        auto nextVertexID = Graph<IT,VT>::Other(graph,edge,TailOfAugmentingPath_VertexID);
+        nextVertex = &vertexVector[nextVertexID];
 
         //B = Base(Blossom(W));
-        nextVertexBase = Blossom::Base(nextVertex); 
+        auto nextVertexBaseID = dsu[nextVertexID];  
+        nextVertexBase = &vertexVector[nextVertexBaseID];
         
         // Path(W, B, P);
         pathThroughBlossom(graph,nextVertex,nextVertexBase,vertexVector,path);
