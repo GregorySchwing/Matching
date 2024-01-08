@@ -31,7 +31,7 @@ public:
                                         std::list<IT> &stack,
                                         IT optionalEdge1=-1,
                                         IT optionalEdge2=-1);
-    static IT Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId);
+    static inline IT Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId);
     static IT EdgeFrom(const Graph<IT, VT>& graph, const IT edgeIndex);
     static IT EdgeTo(const Graph<IT, VT>& graph, const IT edgeIndex);
     // Other member functions...
@@ -109,23 +109,22 @@ template <typename IT, typename VT>
 void Graph<IT,VT>::generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex) {
     rowPtr.resize(numVertices + 1, 0);
     colIndex.resize(2*rows.size());
-
     #pragma omp parallel for
-    for (IT i = 0; i < rows.size(); ++i) {
+    for (size_t i = 0; i < rows.size(); ++i) {
         #pragma omp atomic
         rowPtr[rows[i] + 1]++;
         #pragma omp atomic
         rowPtr[columns[i] + 1]++;
     }
 
-    for (IT i = 1; i <= numVertices; ++i) {
+    for (size_t i = 1; i < rowPtr.size(); ++i) {
         rowPtr[i] += rowPtr[i - 1];
     }
 
     auto rowPtr_duplicate = rowPtr;
 
     #pragma omp parallel for
-    for (IT i = 0; i < rows.size(); ++i) {
+    for (size_t i = 0; i < rows.size(); ++i) {
         IT source = rows[i];
         IT destination = columns[i];
 
@@ -165,6 +164,7 @@ bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph,
     return false;
 }
 
+#ifndef NDEBUG
 // Static method to find the other endpoint of an edge
 template <typename IT, typename VT>
 IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
@@ -182,6 +182,15 @@ IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT 
         return source;
     }
 }
+#else
+// Static method to find the other endpoint of an edge
+template <typename IT, typename VT>
+inline IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
+    // Using XOR to find the value that doesn't equal the third
+    return graph.original_rows[edgeIndex] ^ graph.original_cols[edgeIndex] ^ vertexId;
+}
+#endif
+
 // Static method to find the other endpoint of an edge
 template <typename IT, typename VT>
 IT Graph<IT,VT>::EdgeFrom(const Graph<IT, VT>& graph, const IT edgeIndex) {

@@ -18,7 +18,6 @@ int main(int argc, char **argv) {
     }
 
     std::filesystem::path in_path{argv[1]};
-    double start_time_csc_2_g, end_time_csc_2_g;
     Graph<int64_t, std::string>  G(in_path);
 
     // A map is used for the frontier to limit copying N vertices.

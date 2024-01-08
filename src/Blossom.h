@@ -47,7 +47,7 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
                     std::list<IT> &stack){
     // V,W
     IT EdgeFromVertexID,EdgeToVertexID;
-    Vertex<IT> *EdgeFromVertex,*EdgeToVertex;
+    Vertex<IT> *EdgeToVertex;
     // A,B
     IT FromBaseID,ToBaseID,OriginalBaseID;
     Vertex<IT> *FromBase,*ToBase;
