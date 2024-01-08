@@ -136,6 +136,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
+            // Not sure if this is wrong or the augment method is wrong
             Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
         }
     }
