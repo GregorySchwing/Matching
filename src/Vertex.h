@@ -38,7 +38,7 @@ public:
 
     // Method to check if the vertex is reached
     bool IsEven() const {
-        return AgeField % 2 == 1;
+        return AgeField % 2 == 0;
     }
 
     // Method to check if the vertex is reached
