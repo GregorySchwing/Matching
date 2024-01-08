@@ -163,8 +163,7 @@ bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph,
     }
     return false;
 }
-
-#ifndef NDEBUG
+/*
 // Static method to find the other endpoint of an edge
 template <typename IT, typename VT>
 IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
@@ -182,14 +181,13 @@ IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT 
         return source;
     }
 }
-#else
+*/
 // Static method to find the other endpoint of an edge
 template <typename IT, typename VT>
 inline IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
     // Using XOR to find the value that doesn't equal the third
     return graph.original_rows[edgeIndex] ^ graph.original_cols[edgeIndex] ^ vertexId;
 }
-#endif
 
 // Static method to find the other endpoint of an edge
 template <typename IT, typename VT>
