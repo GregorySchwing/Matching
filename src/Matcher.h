@@ -65,6 +65,8 @@ void Matcher::match(Graph<IT, VT>& graph,
                 tree.clear();
                 //printf("FOUND AP!\n");
             } else {
+                stack.clear();
+                tree.clear();
                 //printf("DIDNT FOUND AP!\n");
             }
         }
@@ -112,7 +114,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(ToBaseVertexID);
-            graph.SetMatchField(ToBaseVertexID,stackEdge);
+            //graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
             return ToBase;
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
@@ -128,7 +130,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
             nextVertex->AgeField=time++;
             tree.push_back(nextVertexIndex);
 
-            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack);
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
