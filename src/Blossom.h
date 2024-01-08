@@ -9,6 +9,8 @@ class Blossom {
         // Static method to find the root of a vertex
         template <typename IT>
         static Vertex<IT>* Base(Vertex<IT>* x);
+        template <typename IT>
+        static Vertex<IT>* Root(Vertex<IT>* x);
         // Static method to find the root of a vertex
         template <typename IT, typename VT>
         static void Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack);
@@ -24,6 +26,11 @@ class Blossom {
 };
 
 template <typename IT>
+Vertex<IT>* Blossom::Root(Vertex<IT>* x) {
+    return FindSet(x);
+}
+
+template <typename IT>
 Vertex<IT>* Blossom::Base(Vertex<IT>* x) {
     return FindSet(x)->BaseField;
 }
@@ -32,6 +39,8 @@ template <typename IT, typename VT>
 void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector<Vertex<IT>> & vertexVector, std::list<IT> &stack){
     // V,W
     Vertex<IT> *EdgeFromVertex,*EdgeToVertex;
+    // X,Y
+    Vertex<IT> *FromRoot,*ToRoot;
     // A,B
     Vertex<IT> *FromBase,*ToBase;
     // E
@@ -43,17 +52,18 @@ void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector
     // W = EdgeTo(E);
     EdgeToVertex = &vertexVector[Graph<IT,VT>::EdgeTo(graph,nextEdge)];
     // X = Blossom(V);
-    // B = Base(X);
-    // Does the root of a DSU always equal the base of the blossom?
-    FromBase = Blossom::Base(EdgeFromVertex);
+    FromRoot = Blossom::Root(EdgeFromVertex);
     // Y = Blossom(W);
+    ToRoot = Blossom::Root(EdgeToVertex);
+    // B = Base(X);
+    FromBase = Blossom::Base(FromRoot);
     // A = Base(Y);
-    // Does the root of a DSU always equal the base of the blossom?
-    ToBase = Blossom::Base(EdgeToVertex);
+    ToBase = Blossom::Base(ToRoot);
 
     // if (Age(A) > Age(B))
     if(ToBase->AgeField > FromBase->AgeField){
         std::swap(FromBase,ToBase);
+        std::swap(FromRoot,ToRoot);
         std::swap(EdgeFromVertex,EdgeToVertex);
     }
 
@@ -63,6 +73,7 @@ void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector
     * on the path from V to A are pushed onto stack S, to later search from.
     */
     bool Found = false;
+    // while (B != A)
     while(FromBase!=ToBase){
         IT matchedEdge, treeEdge;
         ptrdiff_t FromBase_VertexID = FromBase - &vertexVector[0];
@@ -88,40 +99,58 @@ void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector
 
         // Little unsure of this logic.
         // Y = Blossom(W);
-        ToBase = Blossom::Base(EdgeToVertex);
-        FromBase = SetUnion(ToBase, FromBase);
+        ToRoot = Blossom::Root(EdgeToVertex);
+        // X = SetUnion(Y, X);
+        FromRoot = SetUnion(ToRoot, FromRoot);
+        // E = T;
         nextEdge = treeEdge;
+        // V = Other(E, W);
         EdgeFromVertex = &vertexVector[Graph<IT,VT>::Other(graph,nextEdge,EdgeToVertex_VertexID)];
 
-        ToBase = Blossom::Base(EdgeFromVertex);
-        FromBase = SetUnion(ToBase, FromBase);
+        // Y = Blossom(V);
+        ToRoot = Blossom::Root(EdgeFromVertex);
+        FromRoot = SetUnion(ToBase, FromRoot);
+        FromBase = Blossom::Base(FromRoot);
     }
 }
 
 
 template <typename IT>
 Vertex<IT>* Blossom::SetUnion(Vertex<IT>* x, Vertex<IT>* y) {
-    Vertex<IT>* rootX = FindSet(x);
-    Vertex<IT>* rootY = FindSet(y);
+    // E = SetFind(E);
+    x = FindSet(x);
+    // F = SetFind(F);
+    y = FindSet(y);
 
     // Check if they are already in the same set
-    if (rootX == rootY) {
-        return rootX;
+    // if (E == F)
+    if (x == y) {
+        // return E;
+        return x;
     }
 
+    // D = E->Label;
+    Vertex<IT>* D = x->BaseField;
     // Perform Union by rank
-    if (rootX->RankField < rootY->RankField) {
-        rootX->ParentField = rootY;
-        rootY->BaseField = rootX->BaseField;
-        return rootY;
-    } else if (rootX->RankField > rootY->RankField) {
-        rootY->ParentField = rootX;
-        return rootX;
+    // if (E->Rank < F->Rank)
+    if (x->RankField < y->RankField) {
+        // E->Up = F;
+        x->ParentField = y;
+        // F->Label = D;
+        y->BaseField = D;
+        return y;
+    // else if (E->Rank > F->Rank)
+    } else if (x->RankField > y->RankField) {
+        // F->Up = E;
+        y->ParentField = x;
+        return x;
     } else {
         // If ranks are the same, arbitrarily choose one as the parent and increment its rank
-        rootY->ParentField = rootX;
-        rootX->RankField++;
-        return rootX;
+        // E->Rank += 1;
+        x->RankField++;
+        // F->Up = E;
+        y->ParentField = x;
+        return x;
     }
 }
 
