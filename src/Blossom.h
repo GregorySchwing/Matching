@@ -92,6 +92,9 @@ void Blossom::Shrink(const Graph<IT, VT>& graph, const IT stackEdge, std::vector
 
         // T = Tree(W);
         treeEdge = EdgeToVertex->TreeField;
+        if (treeEdge < 0){
+            printf("MASSIVE ERROR!!!\n");
+        }
         ptrdiff_t EdgeToVertex_VertexID = EdgeToVertex - &vertexVector[0];
         if (!Found){
             Found = Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,EdgeToVertex_VertexID,stack,matchedEdge,treeEdge);

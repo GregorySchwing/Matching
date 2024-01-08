@@ -95,12 +95,14 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
         stack.pop_back();
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
-        FromBaseVertexID = Graph<IT,VT>::EdgeFrom(graph,stackEdge);
-        FromBase = Blossom::Base(&vertexVector[FromBaseVertexID]);
+        FromBase = Blossom::Base(&vertexVector[Graph<IT,VT>::EdgeFrom(graph,stackEdge)]);
+        FromBaseVertexID = FromBase - &vertexVector[0];
+
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
-        ToBaseVertexID = Graph<IT,VT>::EdgeTo(graph,stackEdge);
-        ToBase = Blossom::Base(&vertexVector[ToBaseVertexID]);
+        ToBase = Blossom::Base(&vertexVector[Graph<IT,VT>::EdgeTo(graph,stackEdge)]);
+        ToBaseVertexID = ToBase - &vertexVector[0];
+
         // Edge is between two vertices in the same blossom, continue.
         if (FromBase == ToBase)
             continue;
