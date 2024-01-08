@@ -6,7 +6,7 @@
 #include <list>
 #include <unordered_map>
 #include "Enums.h"
-////#include "Edge.h"
+#include "DSU.h"
 #include "Blossom.h"
 
 class Matcher {
@@ -40,6 +40,8 @@ void Matcher::match(Graph<IT, VT>& graph,
                     std::list<IT> &stack,
                     std::list<IT> &tree,
                     std::vector<Vertex<IT>> & vertexVector) {
+    DisjointSetUnion<IT> dsu;
+    dsu.reset(graph.getN());
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
@@ -87,7 +89,6 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     nextVertex = &vertexVector[V_index];
     tree.push_back(V_index);
     nextVertex->AgeField=time++;
-    nextVertex->LabelField=Label::EvenLabel;
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     while(!stack.empty()){
@@ -112,7 +113,6 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
         }
         // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
         if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
-            ToBase->LabelField=Label::OddLabel;
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(ToBaseVertexID);
@@ -120,7 +120,6 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
             // I'll let the augment path method recover the path.
             return ToBase;
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
-            ToBase->LabelField=Label::OddLabel;
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(ToBaseVertexID);
@@ -128,7 +127,6 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
             matchedEdge=graph.GetMatchField(ToBaseVertexID);
             nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
             nextVertex = &vertexVector[nextVertexIndex];
-            nextVertex->LabelField=Label::EvenLabel;
             nextVertex->AgeField=time++;
             tree.push_back(nextVertexIndex);
 
