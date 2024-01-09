@@ -37,6 +37,20 @@ int main(int argc, char **argv) {
     std::cout << "Maximum matching time: "<< duration.count() << " seconds" << std::endl;
     auto count = std::count_if(G.matching.begin(), G.matching.end(),[&](auto const& val){ return val > -1; });
     std::cout << "Maximum matching size: "<<  count/2 << std::endl;
-
+    std::vector<int64_t> match_count(G.getM(),0);
+    // Iterate through the matching vector and update the match_count array
+    for (auto const& val : G.matching) {
+        if (val > -1 && static_cast<size_t>(val) < match_count.size()) {
+            // Increment the count at the specified index
+            match_count[val]++;
+        }
+    }
+    // Check if each value in match_count is either 0 or 2
+    for (size_t i = 0; i < match_count.size(); ++i) {
+        if (match_count[i] != 0 && match_count[i] != 2) {
+            throw std::runtime_error("Error: Match count is not equal to 0 or 2");
+        }
+    }
+    std::cout << "Maximum matching is valid." << std::endl;
     return 0;
 }
