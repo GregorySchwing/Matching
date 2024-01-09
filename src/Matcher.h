@@ -22,7 +22,8 @@ private:
                     Stack<IT> &stack,
                     Stack<IT> &tree,
                      DisjointSetUnion<IT> &dsu,
-                    std::vector<Vertex<IT>> & vertexVector);
+                    std::vector<Vertex<IT>> & vertexVector,
+                    IT time);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -44,12 +45,19 @@ void Matcher::match(Graph<IT, VT>& graph,
     Stack<IT> tree(graph.getN());
     Stack<IT> stack(graph.getM());
     Vertex<IT> * TailOfAugmentingPath;
+    IT time;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
         if (graph.matching[i] < 0) {
             //printf("SEARCHING FROM %ld!\n",i);
+            //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
+            tree.push_back(i);
+            time = 0;
+            vertexVector[i].AgeField=time++;
+            // Push edges onto stack, breaking if that stackEdge is a solution.
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,i,stack);
             // Your matching logic goes here...
-            TailOfAugmentingPath=search(graph,i,stack,tree,dsu,vertexVector);
+            TailOfAugmentingPath=search(graph,i,stack,tree,dsu,vertexVector,time);
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
                 augment(graph,TailOfAugmentingPath,dsu,vertexVector);
@@ -80,22 +88,18 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
                     const size_t V_index,
                     Stack<IT> &stack,
                     Stack<IT> &tree,
-                     DisjointSetUnion<IT> &dsu,
-                    std::vector<Vertex<IT>> & vertexVector) {
+                    DisjointSetUnion<IT> &dsu,
+                    std::vector<Vertex<IT>> & vertexVector,
+                    IT time) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
     int64_t FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
-    IT time = 0;
-    //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
-    nextVertex = &vertexVector[V_index];
-    tree.push_back(V_index);
-    nextVertex->AgeField=time++;
-    // Push edges onto stack, breaking if that stackEdge is a solution.
-    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     while(!stack.empty()){
         stackEdge = stack.back();
         stack.pop_back();
+        if (stackEdge<0)
+            continue;
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
         FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
