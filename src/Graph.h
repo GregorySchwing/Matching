@@ -15,9 +15,10 @@ namespace fmm = fast_matrix_market;
 #include "Vertex.h"
 #include "Stack.h"
 #include <list>
+#include "TraversalPolicy.h"
 
-template <typename IT, typename VT>
-class Graph {
+template <typename IT, typename VT, template <typename T> class TraversalPolicy = SerialPolicy>
+class Graph : public TraversalPolicy<IT>  {
 public:
     Graph(const std::filesystem::path& in_path);
     size_t getN() const;
@@ -49,40 +50,40 @@ private:
 };
 
 // Constructor
-template <typename IT, typename VT>
-Graph<IT,VT>::Graph(const std::filesystem::path& in_path) {
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+ Graph<IT, VT, TraversalPolicy>::Graph(const std::filesystem::path& in_path) {
     read_file(in_path);
 }
 
-template <typename IT, typename VT>
-size_t Graph<IT,VT>::getN() const{
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+size_t  Graph<IT, VT, TraversalPolicy>::getN() const{
     return N;
 }
 
-template <typename IT, typename VT>
-size_t Graph<IT,VT>::getM() const{
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+size_t  Graph<IT, VT, TraversalPolicy>::getM() const{
     return M;
 }
 
 
-template <typename IT, typename VT>
-bool Graph<IT,VT>::IsMatched(size_t index) const{
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+bool  Graph<IT, VT, TraversalPolicy>::IsMatched(size_t index) const{
     return matching[index]>-1;
 }
 
-template <typename IT, typename VT>
-IT Graph<IT,VT>::GetMatchField(size_t index) const{
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+IT  Graph<IT, VT, TraversalPolicy>::GetMatchField(size_t index) const{
     return matching[index];
 }
 
-template <typename IT, typename VT>
-void Graph<IT,VT>::SetMatchField(size_t index,IT edge){
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+void  Graph<IT, VT, TraversalPolicy>::SetMatchField(size_t index,IT edge){
     matching[index]=edge;
 }
 
 // Constructor
-template <typename IT, typename VT>
-void Graph<IT,VT>::read_file(const std::filesystem::path& in_path) {
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+void  Graph<IT, VT, TraversalPolicy>::read_file(const std::filesystem::path& in_path) {
     fmm::matrix_market_header header;
     fmm::read_options options;
     options.generalize_symmetry = false;
@@ -105,8 +106,8 @@ void Graph<IT,VT>::read_file(const std::filesystem::path& in_path) {
 }
 
 // Constructor
-template <typename IT, typename VT>
-void Graph<IT,VT>::generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex) {
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+void  Graph<IT, VT, TraversalPolicy>::generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex) {
     rowPtr.resize(numVertices + 1, 0);
     colIndex.resize(2*rows.size());
     #pragma omp parallel for
@@ -139,8 +140,8 @@ void Graph<IT,VT>::generateCSR(const std::vector<IT>& rows, const std::vector<IT
 }
 
 
-template <typename IT, typename VT>
-bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+bool  Graph<IT, VT, TraversalPolicy>::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                     std::vector<Vertex<IT>> & vertexVector, 
                                     IT V_index, 
                                     Stack<IT> &stack,
@@ -165,8 +166,8 @@ bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph,
 }
 /*
 // Static method to find the other endpoint of an edge
-template <typename IT, typename VT>
-IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+IT  Graph<IT, VT, TraversalPolicy>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
     if (edgeIndex < 0 || edgeIndex >= static_cast<IT>(graph.original_rows.size())) {
         // Handle invalid edge index
         std::cerr << "Error: Invalid edge index " << edgeIndex<< " vertexId " << vertexId << " graph.original_rows.size() " << graph.original_rows.size() << std::endl;
@@ -183,22 +184,22 @@ IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT 
 }
 */
 // Static method to find the other endpoint of an edge
-template <typename IT, typename VT>
-inline IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+inline IT  Graph<IT, VT, TraversalPolicy>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
     // Using XOR to find the value that doesn't equal the third
     return graph.original_rows[edgeIndex] ^ graph.original_cols[edgeIndex] ^ vertexId;
 }
 
 // Static method to find the other endpoint of an edge
-template <typename IT, typename VT>
-IT Graph<IT,VT>::EdgeFrom(const Graph<IT, VT>& graph, const IT edgeIndex) {
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+IT  Graph<IT, VT, TraversalPolicy>::EdgeFrom(const Graph<IT, VT>& graph, const IT edgeIndex) {
     IT source = graph.original_rows[edgeIndex];
     return source;
 }
 
 // Static method to find the other endpoint of an edge
-template <typename IT, typename VT>
-IT Graph<IT,VT>::EdgeTo(const Graph<IT, VT>& graph, const IT edgeIndex) {
+template <typename IT, typename VT, template <typename T> class TraversalPolicy>
+IT  Graph<IT, VT, TraversalPolicy>::EdgeTo(const Graph<IT, VT>& graph, const IT edgeIndex) {
     IT destination = graph.original_cols[edgeIndex];
     return destination;
 }

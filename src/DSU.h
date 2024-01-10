@@ -1,3 +1,5 @@
+#ifndef DSU_H
+#define DSU_H
 #include <vector>
 #include <algorithm>
 #include <cassert>
@@ -52,3 +54,4 @@ void DisjointSetUnion<T>::linkTo(T a, T b) {
     size[a] += size[b];
     groupRoot[a] = gr;
 }
+#endif

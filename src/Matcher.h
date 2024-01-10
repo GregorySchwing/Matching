@@ -9,6 +9,7 @@
 #include "DSU.h"
 #include "Blossom.h"
 #include "Stack.h"
+#include "Frontier.h"
 
 class Matcher {
 public:
@@ -39,6 +40,7 @@ private:
 template <typename IT, typename VT>
 void Matcher::match(Graph<IT, VT>& graph, 
                     std::vector<Vertex<IT>> & vertexVector) {
+    Frontier<IT> f(graph.getN(),graph.getM());
     DisjointSetUnion<IT> dsu;
     dsu.reset(graph.getN());
     Stack<IT> tree(graph.getN());
