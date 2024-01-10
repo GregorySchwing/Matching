@@ -9,21 +9,32 @@
 #include "DSU.h"
 #include "Blossom.h"
 #include "Stack.h"
-
+#include <thread>
 class Matcher {
 public:
     template <typename IT, typename VT>
-    static void match(Graph<IT, VT>& graph, 
-                    std::vector<Vertex<IT>> & vertexVector);
+    static void match(Graph<IT, VT>& graph);
 private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
-                    const size_t V_index,
                     Stack<IT> &stack,
                     Stack<IT> &tree,
                      DisjointSetUnion<IT> &dsu,
                     std::vector<Vertex<IT>> & vertexVector,
                     IT time);
+
+    template <typename IT, typename VT>
+    Vertex<IT> * Matcher::searchForkable(Graph<IT, VT>& graph, 
+                        Stack<IT> &stack,
+                        Stack<IT> &tree,
+                        DisjointSetUnion<IT> &dsu,
+                        std::vector<Vertex<IT>> & vertexVector,
+                        Stack<IT> &stack2,
+                        Stack<IT> &tree2,
+                        DisjointSetUnion<IT> &dsu2,
+                        std::vector<Vertex<IT>> & vertexVector2,
+                        IT time);
+
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -36,14 +47,44 @@ private:
                         const Vertex<IT> * TailOfAugmentingPathBase,
                         std::vector<Vertex<IT>> & vertexVector,
                         std::list<IT> & path);
+    template <typename IT, typename VT>
+    static void initializeBuffer(size_t N, size_t M,std::vector<Vertex<int64_t>>& vertexVector,
+                  DisjointSetUnion<IT>& dsu, Stack<IT>& tree, Stack<IT>& stack);
 };
 template <typename IT, typename VT>
-void Matcher::match(Graph<IT, VT>& graph, 
-                    std::vector<Vertex<IT>> & vertexVector) {
+void Matcher::match(Graph<IT, VT>& graph) {
+    // A map is used for the frontier to limit copying N vertices.
+    //std::unordered_map<int64_t, Vertex<int64_t>> vertexMap;
+    // A vector is used for the frontier to allocate once all the memory ever needed.
+    std::vector<Vertex<IT>> vertexVector;
     DisjointSetUnion<IT> dsu;
+    Stack<IT> tree;
+    Stack<IT> stack;
+
+    std::vector<Vertex<IT>> vertexVector2;
+    DisjointSetUnion<IT> dsu2;
+    Stack<IT> tree2;
+    Stack<IT> stack2;
+    // Create a static thread and pass references to the static function
+    
+    std::thread initializeBufferThread([&]() {
+        Matcher::initializeBuffer<IT, VT>(graph.getN(), graph.getM(),
+            std::ref(vertexVector2), std::ref(dsu2), std::ref(tree2), std::ref(stack2));
+    });
+
+    // Do other work in the main thread
+    initializeBufferThread.detach();  // Detach the thread
+    
+    bool four_times_longer_than_alloc = false;
+    auto allocate_start = high_resolution_clock::now();
+    vertexVector.resize(graph.getN());
+    tree.resize(graph.getN());
+    stack.resize(graph.getM());
     dsu.reset(graph.getN());
-    Stack<IT> tree(graph.getN());
-    Stack<IT> stack(graph.getM());
+    auto allocate_end = high_resolution_clock::now();
+    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+    std::cout << "|V|-vector memory allocation time: "<< duration_alloc.count() << " milliseconds" << std::endl;
+
     Vertex<IT> * TailOfAugmentingPath;
     IT time;
     // Access the graph elements as needed
@@ -57,7 +98,15 @@ void Matcher::match(Graph<IT, VT>& graph,
             // Push edges onto stack, breaking if that stackEdge is a solution.
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,i,stack);
             // Your matching logic goes here...
-            TailOfAugmentingPath=search(graph,i,stack,tree,dsu,vertexVector,time);
+            auto search_start = high_resolution_clock::now();
+            TailOfAugmentingPath=search(graph,stack,tree,dsu,vertexVector,time);
+            auto search_end = high_resolution_clock::now();
+            auto duration_search = duration_cast<milliseconds>(search_end - search_start);
+            if (!four_times_longer_than_alloc){
+                four_times_longer_than_alloc=duration_search/duration_alloc >2.0;
+                if (four_times_longer_than_alloc)
+                    printf("4x> longer to search than alloc on iteration %ld/%ld\n",i,graph.getN());
+            }
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
                 augment(graph,TailOfAugmentingPath,dsu,vertexVector);
@@ -83,9 +132,9 @@ void Matcher::match(Graph<IT, VT>& graph,
         }
     }
 }
+
 template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
-                    const size_t V_index,
                     Stack<IT> &stack,
                     Stack<IT> &tree,
                     DisjointSetUnion<IT> &dsu,
@@ -146,6 +195,75 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     }
     return nullptr;
 }
+
+
+template <typename IT, typename VT>
+Vertex<IT> * Matcher::searchForkable(Graph<IT, VT>& graph, 
+                    Stack<IT> &stack,
+                    Stack<IT> &tree,
+                    DisjointSetUnion<IT> &dsu,
+                    std::vector<Vertex<IT>> & vertexVector,
+                    Stack<IT> &stack2,
+                    Stack<IT> &tree2,
+                    DisjointSetUnion<IT> &dsu2,
+                    std::vector<Vertex<IT>> & vertexVector2,
+                    IT time) {
+    Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
+    int64_t FromBaseVertexID,ToBaseVertexID;
+    IT stackEdge, matchedEdge;
+    IT nextVertexIndex;
+    while(!stack.empty()){
+        stackEdge = stack.back();
+        stack.pop_back();
+        if (stackEdge<0)
+            continue;
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
+        FromBase = &vertexVector[FromBaseVertexID];
+
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        ToBaseVertexID = dsu[Graph<IT,VT>::EdgeTo(graph,stackEdge)];
+        ToBase = &vertexVector[ToBaseVertexID];
+
+        // Edge is between two vertices in the same blossom, continue.
+        if (FromBase == ToBase)
+            continue;
+        if(!FromBase->IsEven()){
+            std::swap(FromBase,ToBase);
+            std::swap(FromBaseVertexID,ToBaseVertexID);
+        }
+        // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
+        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(ToBaseVertexID);
+            //graph.SetMatchField(ToBaseVertexID,stackEdge);
+            // I'll let the augment path method recover the path.
+            return ToBase;
+        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(ToBaseVertexID);
+
+            matchedEdge=graph.GetMatchField(ToBaseVertexID);
+            nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+            nextVertex = &vertexVector[nextVertexIndex];
+            nextVertex->AgeField=time++;
+            tree.push_back(nextVertexIndex);
+
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+
+        } else if (ToBase->IsEven()) {
+            // Shrink Blossoms
+            // Not sure if this is wrong or the augment method is wrong
+            Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
+        }
+    }
+    return nullptr;
+}
+
 
 template <typename IT, typename VT>
 void Matcher::augment(Graph<IT, VT>& graph, 
@@ -247,6 +365,16 @@ void Matcher::pathThroughBlossom(Graph<IT, VT>& graph,
             exit(1);
         }
     }
+}
+
+template <typename IT, typename VT>
+void Matcher::initializeBuffer(size_t N, size_t M,std::vector<Vertex<int64_t>>& vertexVector,
+                  DisjointSetUnion<IT>& dsu, Stack<IT>& tree, Stack<IT>& stack) {
+    // Perform some operations using the provided references
+    vertexVector.resize(N);
+    tree.resize(N);
+    stack.resize(M);
+    dsu.reset(N);
 }
 
 

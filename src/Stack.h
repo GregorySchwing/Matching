@@ -12,10 +12,16 @@ private:
 
 public:
     // Constructor
+    Stack();
+
+    // Constructor
     Stack(size_t size);
 
     // Copy constructor
     Stack(const Stack& other);
+
+    void resize(const size_t val);
+
 
     // Method to push an element onto the stack
     void push_back(const IT& val);
@@ -53,6 +59,10 @@ public:
 
 // Constructor
 template <typename IT>
+Stack<IT>::Stack() {}
+
+// Constructor
+template <typename IT>
 Stack<IT>::Stack(size_t size) : data(size), top(0), size(size) {}
 
 // Copy constructor
@@ -68,6 +78,15 @@ void Stack<IT>::push_back(const IT& val) {
         throw std::overflow_error("Stack overflow");
     }
 }
+
+// Method to push an element onto the stack
+template <typename IT>
+void Stack<IT>::resize(const size_t val) {
+    data.resize(val);
+    top = 0;
+    size = val;
+}
+
 
 // Method to pop an element from the stack
 template <typename IT>
