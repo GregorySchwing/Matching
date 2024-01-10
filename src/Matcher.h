@@ -9,6 +9,7 @@
 #include "DSU.h"
 #include "Blossom.h"
 #include "Stack.h"
+#include "Frontier.h"
 
 class Matcher {
 public:
@@ -19,15 +20,11 @@ private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
                     const size_t V_index,
-                    Stack<IT> &stack,
-                    Stack<IT> &tree,
-                     DisjointSetUnion<IT> &dsu,
-                    std::vector<Vertex<IT>> & vertexVector);
+                    Frontier<IT> & f32subf64);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
-                     DisjointSetUnion<IT> &dsu,
-                    std::vector<Vertex<IT>> & vertexVector);
+                    Frontier<IT> & f);
     template <typename IT, typename VT>
     static void pathThroughBlossom(Graph<IT, VT>& graph, 
                         // V
@@ -39,37 +36,34 @@ private:
 template <typename IT, typename VT>
 void Matcher::match(Graph<IT, VT>& graph, 
                     std::vector<Vertex<IT>> & vertexVector) {
-    DisjointSetUnion<IT> dsu;
-    dsu.reset(graph.getN());
-    Stack<IT> tree(graph.getN());
-    Stack<IT> stack(graph.getM());
+    Frontier<IT> f(graph.getN(),graph.getM());
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
         if (graph.matching[i] < 0) {
             //printf("SEARCHING FROM %ld!\n",i);
             // Your matching logic goes here...
-            TailOfAugmentingPath=search(graph,i,stack,tree,dsu,vertexVector);
+            TailOfAugmentingPath=search(graph,i,f);
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
-                augment(graph,TailOfAugmentingPath,dsu,vertexVector);
+                augment(graph,TailOfAugmentingPath,f);
                 
-                for (auto V : tree) {
-                    vertexVector[V].TreeField=-1;
-                    vertexVector[V].BridgeField=-1;
-                    vertexVector[V].ShoreField=-1;
-                    vertexVector[V].AgeField=-1;
-                    dsu.link[V]=V;
-                    dsu.directParent[V]=-1;
-                    dsu.groupRoot[V]=V;
-                    dsu.size[V]=1;
+                for (auto V : f.tree) {
+                    f.vertexVector[V].TreeField=-1;
+                    f.vertexVector[V].BridgeField=-1;
+                    f.vertexVector[V].ShoreField=-1;
+                    f.vertexVector[V].AgeField=-1;
+                    f.dsu.link[V]=V;
+                    f.dsu.directParent[V]=-1;
+                    f.dsu.groupRoot[V]=V;
+                    f.dsu.size[V]=1;
                 }
-                stack.clear();
-                tree.clear();
+                f.stack.clear();
+                f.tree.clear();
                 //printf("FOUND AP!\n");
             } else {
-                stack.clear();
-                tree.clear();
+                f.stack.clear();
+                f.tree.clear();
                 //printf("DIDNT FOUND AP!\n");
             }
         }
@@ -78,15 +72,16 @@ void Matcher::match(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
                     const size_t V_index,
-                    Stack<IT> &stack,
-                    Stack<IT> &tree,
-                     DisjointSetUnion<IT> &dsu,
-                    std::vector<Vertex<IT>> & vertexVector) {
+                    Frontier<IT> & f) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
     int64_t FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
     IT time = 0;
+    Stack<IT> &stack = f.stack;
+    Stack<IT> &tree = f.tree;
+    DisjointSetUnion<IT> &dsu = f.dsu;
+    std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
     //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
     nextVertex = &vertexVector[V_index];
     tree.push_back(V_index);
@@ -146,8 +141,10 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 void Matcher::augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
-                     DisjointSetUnion<IT> &dsu,
-                    std::vector<Vertex<IT>> & vertexVector) {
+                    Frontier<IT> & f) {
+
+    DisjointSetUnion<IT> &dsu = f.dsu;
+    std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
     std::list<IT> path;
     IT edge;
     // W

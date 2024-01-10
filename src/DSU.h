@@ -1,7 +1,8 @@
 #include <vector>
 #include <algorithm>
 #include <cassert>
-
+#ifndef DSU_H
+#define DSU_H
 template<typename T>
 class DisjointSetUnion {
 public:
@@ -52,3 +53,4 @@ void DisjointSetUnion<T>::linkTo(T a, T b) {
     size[a] += size[b];
     groupRoot[a] = gr;
 }
+#endif
