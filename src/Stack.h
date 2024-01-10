@@ -5,12 +5,13 @@
 
 template <typename IT>
 class Stack {
-private:
+//private:
+public:
+
     std::vector<IT> data;
     size_t top;
     size_t size;
 
-public:
     // Constructor
     Stack(size_t size);
 

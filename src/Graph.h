@@ -31,6 +31,12 @@ public:
                                         Stack<IT> &stack,
                                         IT optionalEdge1=-1,
                                         IT optionalEdge2=-1);
+    static bool pushEdgesOntoStackParallel(const Graph<IT, VT>& graph, 
+                                        std::vector<Vertex<IT>> & vertexVector, 
+                                        IT V_index, 
+                                        Stack<IT> &stack,
+                                        IT optionalEdge1=-1,
+                                        IT optionalEdge2=-1);
     static inline IT Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId);
     static IT EdgeFrom(const Graph<IT, VT>& graph, const IT edgeIndex);
     static IT EdgeTo(const Graph<IT, VT>& graph, const IT edgeIndex);
@@ -162,6 +168,40 @@ bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph,
             return true;
     }
     return false;
+}
+
+
+template <typename IT, typename VT>
+bool Graph<IT,VT>::pushEdgesOntoStackParallel(const Graph<IT, VT>& graph, 
+                                    std::vector<Vertex<IT>> & vertexVector, 
+                                    IT V_index, 
+                                    Stack<IT> &stack,
+                                    IT optionalEdge1,
+                                    IT optionalEdge2){
+    IT nextVertexIndex;
+    Vertex<IT>* nextVertex;
+    IT solutionPosition = -1;
+    #pragma omp parallel for shared(solutionPosition)
+    for (IT start = graph.indptr[V_index]; start < graph.indptr[V_index + 1]; ++start) {
+        // For blossom contraction, need to skip repushing the matched & tree edges
+        if (graph.indices[start] == optionalEdge1 || graph.indices[start] == optionalEdge2)
+            continue;
+
+        IT index;
+        #pragma omp atomic capture
+        index = stack.top++;
+        stack.data[index]=graph.indices[start];
+        IT nextVertexIndex = Graph<IT, VT>::Other(graph, graph.indices[start], V_index);
+        Vertex<IT>* nextVertex = &vertexVector[nextVertexIndex];
+        if (!nextVertex->IsReached() && !graph.IsMatched(nextVertexIndex)) {
+            solutionPosition = index;
+            //#pragma omp cancel for
+        }
+    }
+    if (solutionPosition>-1){
+        std::swap(stack.data[solutionPosition],stack.data[(stack.top)-1]);
+    }
+    return solutionPosition>-1;
 }
 /*
 // Static method to find the other endpoint of an edge

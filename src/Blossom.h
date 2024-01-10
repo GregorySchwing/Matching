@@ -103,7 +103,9 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
             printf("MASSIVE ERROR!!!\n");
         }
         if (!Found){
-            Found = Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,EdgeToVertexID,stack,matchedEdge,treeEdge);
+            //Found = Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,EdgeToVertexID,stack,matchedEdge,treeEdge);
+            Found = Graph<IT,VT>::pushEdgesOntoStackParallel(graph,vertexVector,EdgeToVertexID,stack,matchedEdge,treeEdge);
+
         }
 
         // Little unsure of this logic.

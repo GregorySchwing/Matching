@@ -92,7 +92,8 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     tree.push_back(V_index);
     nextVertex->AgeField=time++;
     // Push edges onto stack, breaking if that stackEdge is a solution.
-    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
+    //Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
+    Graph<IT,VT>::pushEdgesOntoStackParallel(graph,vertexVector,V_index,stack);
     while(!stack.empty()){
         stackEdge = stack.back();
         stack.pop_back();
@@ -132,7 +133,8 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
             nextVertex->AgeField=time++;
             tree.push_back(nextVertexIndex);
 
-            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+            //Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+            Graph<IT,VT>::pushEdgesOntoStackParallel(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
