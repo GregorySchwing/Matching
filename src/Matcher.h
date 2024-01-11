@@ -47,23 +47,11 @@ void Matcher::match(Graph<IT, VT>& graph,
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
                 augment(graph,TailOfAugmentingPath,f);
-                
-                for (auto V : f.tree) {
-                    f.vertexVector[V].TreeField=-1;
-                    f.vertexVector[V].BridgeField=-1;
-                    f.vertexVector[V].ShoreField=-1;
-                    f.vertexVector[V].AgeField=-1;
-                    f.dsu.link[V]=V;
-                    f.dsu.directParent[V]=-1;
-                    f.dsu.groupRoot[V]=V;
-                    f.dsu.size[V]=1;
-                }
-                f.stack.clear();
-                f.tree.clear();
+                f.reinit();
+                f.clear();
                 //printf("FOUND AP!\n");
             } else {
-                f.stack.clear();
-                f.tree.clear();
+                f.clear();
                 //printf("DIDNT FOUND AP!\n");
             }
         }
