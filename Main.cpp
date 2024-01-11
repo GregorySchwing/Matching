@@ -23,14 +23,14 @@ int main(int argc, char **argv) {
     // A map is used for the frontier to limit copying N vertices.
     //std::unordered_map<int64_t, Vertex<int64_t>> vertexMap;
     // A vector is used for the frontier to allocate once all the memory ever needed.
-    std::vector<Vertex<int64_t>> vertexVector;
     auto allocate_start = high_resolution_clock::now();
     G.matching.resize(G.getN(),-1);
     auto allocate_end = high_resolution_clock::now();
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Matching (|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+    Statistics<int64_t> stats(G.getN());
     auto match_start = high_resolution_clock::now();
-    Matcher::match<int64_t, std::string>(G);
+    Matcher::match<int64_t, std::string>(G,stats);
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<seconds>(match_end - match_start);
     std::cout << "Maximum matching time: "<< duration.count() << " seconds" << '\n';
@@ -51,5 +51,8 @@ int main(int argc, char **argv) {
         }
     }
     std::cout << "Maximum matching is valid." << '\n';
+    // Writing data to file
+    stats.write_file(argv[1]);
+
     return 0;
 }

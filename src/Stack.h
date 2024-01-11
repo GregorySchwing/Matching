@@ -8,11 +8,11 @@ class Stack {
 private:
     std::vector<IT> data;
     size_t top;
-    size_t size;
+    size_t capacity;
 
 public:
     // Constructor
-    Stack(size_t size);
+    Stack(size_t capacity);
 
     // Copy constructor
     Stack(const Stack& other);
@@ -23,6 +23,9 @@ public:
     // Method to pop an element from the stack
     IT back();
     
+    // Method to pop an element from the stack
+    size_t size();
+
     // Method to pop an element from the stack
     bool empty();
 
@@ -53,16 +56,23 @@ public:
 
 // Constructor
 template <typename IT>
-Stack<IT>::Stack(size_t size) : data(size), top(0), size(size) {}
+Stack<IT>::Stack(size_t capacity) : data(capacity), top(0), capacity(capacity) {}
 
 // Copy constructor
 template <typename IT>
-Stack<IT>::Stack(const Stack& other) : data(other.data), top(other.top), size(other.size) {}
+Stack<IT>::Stack(const Stack& other) : data(other.data), top(other.top), capacity(other.capacity) {}
+
+// Method to push an element onto the stack
+template <typename IT>
+size_t Stack<IT>::size() {
+    return top;
+}
+
 
 // Method to push an element onto the stack
 template <typename IT>
 void Stack<IT>::push_back(const IT& val) {
-    if (top < size) {
+    if (top < capacity) {
         data[top++] = val;
     } else {
         throw std::overflow_error("Stack overflow");

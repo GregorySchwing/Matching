@@ -10,11 +10,15 @@
 #include "Blossom.h"
 #include "Stack.h"
 #include "Frontier.h"
+#include "Statistics.h"
 
 class Matcher {
 public:
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph);
+    template <typename IT, typename VT>
+    static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
+
 private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
@@ -30,7 +34,8 @@ private:
                         const Vertex<IT> * TailOfAugmentingPath,
                         const Vertex<IT> * TailOfAugmentingPathBase,
                         std::vector<Vertex<IT>> & vertexVector,
-                        std::list<IT> & path);
+                        //std::list<IT> & path,
+                        Stack<IT> & path);
 };
 
 template <typename IT, typename VT>
@@ -60,6 +65,40 @@ void Matcher::match(Graph<IT, VT>& graph) {
         }
     }
 }
+
+
+template <typename IT, typename VT>
+void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
+    auto allocate_start = high_resolution_clock::now();
+    Frontier<IT> f(graph.getN(),graph.getM());
+    auto allocate_end = high_resolution_clock::now();
+    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+    std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+    Vertex<IT> * TailOfAugmentingPath;
+    // Access the graph elements as needed
+    for (std::size_t i = 0; i < graph.getN(); ++i) {
+        if (graph.matching[i] < 0) {
+            //printf("SEARCHING FROM %ld!\n",i);
+            // Your matching logic goes here...
+            auto search_start = high_resolution_clock::now();
+            TailOfAugmentingPath=search(graph,i,f);
+            auto search_end = high_resolution_clock::now();
+            // If not a nullptr, I found an AP.
+            if (TailOfAugmentingPath){
+                augment(graph,TailOfAugmentingPath,f);
+                stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.tree.size(),duration_cast<microseconds>(search_end - search_start));
+                f.reinit();
+                f.clear();
+                //printf("FOUND AP!\n");
+            } else {
+                stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.tree.size(),duration_cast<microseconds>(search_end - search_start));
+                f.clear();
+                //printf("DIDNT FOUND AP!\n");
+            }
+        }
+    }
+}
+
 
 template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
@@ -137,7 +176,8 @@ void Matcher::augment(Graph<IT, VT>& graph,
 
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
-    std::list<IT> path;
+    //std::list<IT> path;
+    Stack<IT> & path = f.path;
     IT edge;
     // W
     Vertex<IT>*nextVertex;
@@ -183,7 +223,8 @@ void Matcher::pathThroughBlossom(Graph<IT, VT>& graph,
                     const Vertex<IT> * TailOfAugmentingPath,
                     const Vertex<IT> * TailOfAugmentingPathBase,
                     std::vector<Vertex<IT>> & vertexVector,
-                    std::list<IT> & path) {
+                    //std::list<IT> & path,
+                    Stack<IT> & path) {
     // W
     Vertex<IT>*nextVertex;
     // if (V != B)
