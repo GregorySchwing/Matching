@@ -22,6 +22,8 @@ public:
     // Constructor
     Statistics(size_t n);
 
+    T path_2_v(T path_val);
+
     // Method to write entry into vectors and increment top
     void write_entry(T tree_val, T path_val, std::chrono::microseconds time_val);
 
@@ -36,6 +38,19 @@ Statistics<T>::Statistics(size_t n) : top(0) {
     tree.resize(n, 0);
     path.resize(n, 0);
     time.resize(n, std::chrono::microseconds(0));
+}
+
+
+// Definition of the template class write_entry method
+template <typename T>
+T Statistics<T>::path_2_v(T path_val) {
+    if (path_val== 1) {
+        return 2;
+    } else if (path_val>1) {
+        return 2 * path_val - 1;
+    } else {
+        return 0;
+    }
 }
 
 // Definition of the template class write_entry method

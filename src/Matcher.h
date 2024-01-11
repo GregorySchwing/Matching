@@ -24,6 +24,12 @@ private:
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f);
+
+    template <typename IT, typename VT>
+    static Vertex<IT> * search(Graph<IT, VT>& graph, 
+                    const size_t V_index,
+                    Frontier<IT> & f,
+                    std::atomic<bool> &flag);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -75,23 +81,25 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     Vertex<IT> * TailOfAugmentingPath;
+    std::atomic<bool> flag = true;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
         if (graph.matching[i] < 0) {
             //printf("SEARCHING FROM %ld!\n",i);
             // Your matching logic goes here...
+            //flag = true;
             auto search_start = high_resolution_clock::now();
-            TailOfAugmentingPath=search(graph,i,f);
+            TailOfAugmentingPath=search(graph,i,f,flag);
             auto search_end = high_resolution_clock::now();
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
                 augment(graph,TailOfAugmentingPath,f);
-                stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.tree.size(),duration_cast<microseconds>(search_end - search_start));
+                stats.write_entry(stats.path_2_v(f.path.size()),f.tree.size(),duration_cast<microseconds>(search_end - search_start));
                 f.reinit();
                 f.clear();
                 //printf("FOUND AP!\n");
             } else {
-                stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.tree.size(),duration_cast<microseconds>(search_end - search_start));
+                stats.write_entry(stats.path_2_v(f.path.size()),f.tree.size(),duration_cast<microseconds>(search_end - search_start));
                 f.clear();
                 //printf("DIDNT FOUND AP!\n");
             }
@@ -120,6 +128,77 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     while(!stack.empty()){
+        stackEdge = stack.back();
+        stack.pop_back();
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
+        FromBase = &vertexVector[FromBaseVertexID];
+
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        ToBaseVertexID = dsu[Graph<IT,VT>::EdgeTo(graph,stackEdge)];
+        ToBase = &vertexVector[ToBaseVertexID];
+
+        // Edge is between two vertices in the same blossom, continue.
+        if (FromBase == ToBase)
+            continue;
+        if(!FromBase->IsEven()){
+            std::swap(FromBase,ToBase);
+            std::swap(FromBaseVertexID,ToBaseVertexID);
+        }
+        // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
+        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(ToBaseVertexID);
+            //graph.SetMatchField(ToBaseVertexID,stackEdge);
+            // I'll let the augment path method recover the path.
+            return ToBase;
+        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(ToBaseVertexID);
+
+            matchedEdge=graph.GetMatchField(ToBaseVertexID);
+            nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+            nextVertex = &vertexVector[nextVertexIndex];
+            nextVertex->AgeField=time++;
+            tree.push_back(nextVertexIndex);
+
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+
+        } else if (ToBase->IsEven()) {
+            // Shrink Blossoms
+            // Not sure if this is wrong or the augment method is wrong
+            Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
+        }
+    }
+    return nullptr;
+}
+
+
+template <typename IT, typename VT>
+Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
+                    const size_t V_index,
+                    Frontier<IT> & f,
+                     std::atomic<bool> &flag) {
+    Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
+    int64_t FromBaseVertexID,ToBaseVertexID;
+    IT stackEdge, matchedEdge;
+    IT nextVertexIndex;
+    IT time = 0;
+    Stack<IT> &stack = f.stack;
+    Stack<IT> &tree = f.tree;
+    DisjointSetUnion<IT> &dsu = f.dsu;
+    std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
+    //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
+    nextVertex = &vertexVector[V_index];
+    tree.push_back(V_index);
+    nextVertex->AgeField=time++;
+    // Push edges onto stack, breaking if that stackEdge is a solution.
+    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
+    while(!stack.empty() && flag.load(std::memory_order_relaxed)){
         stackEdge = stack.back();
         stack.pop_back();
         // Necessary because vertices dont know their own index.
