@@ -122,7 +122,7 @@ void Graph<IT,VT>::generateCSR(const std::vector<IT>& rows, const std::vector<IT
     }
 
     auto rowPtr_duplicate = rowPtr;
-
+    /*
     #pragma omp parallel for
     for (size_t i = 0; i < rows.size(); ++i) {
         IT source = rows[i];
@@ -133,6 +133,21 @@ void Graph<IT,VT>::generateCSR(const std::vector<IT>& rows, const std::vector<IT
         index = rowPtr_duplicate[source]++;
         colIndex[index] = i;
         #pragma omp atomic capture
+        index = rowPtr_duplicate[destination]++;
+        colIndex[index] = i;
+    }
+    */
+
+    //#pragma omp parallel for
+    for (size_t i = 0; i < rows.size(); ++i) {
+        IT source = rows[i];
+        IT destination = columns[i];
+
+        IT index;
+        //#pragma omp atomic capture
+        index = rowPtr_duplicate[source]++;
+        colIndex[index] = i;
+        //#pragma omp atomic capture
         index = rowPtr_duplicate[destination]++;
         colIndex[index] = i;
     }
