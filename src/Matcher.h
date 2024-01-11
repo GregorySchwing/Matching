@@ -19,7 +19,7 @@ private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
                     const size_t V_index,
-                    Frontier<IT> & f32subf64);
+                    Frontier<IT> & f);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
