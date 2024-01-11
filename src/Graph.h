@@ -15,11 +15,14 @@ namespace fmm = fast_matrix_market;
 #include "Vertex.h"
 #include "Stack.h"
 #include <list>
+#include <random>
 
 template <typename IT, typename VT>
 class Graph {
 public:
     Graph(const std::filesystem::path& in_path);
+    Graph(const Graph& other, unsigned int seed);
+
     size_t getN() const;
     size_t getM() const;
     bool IsMatched(size_t index) const;
@@ -46,12 +49,47 @@ public:
 private:    
     void read_file(const std::filesystem::path& in_path);
     void generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex);
+    void permuteIndicesWithSeed(unsigned int seed);
 };
 
 // Constructor
 template <typename IT, typename VT>
-Graph<IT,VT>::Graph(const std::filesystem::path& in_path) {
+Graph<IT,VT>::Graph(const std::filesystem::path& in_path)
+{
     read_file(in_path);
+}
+
+// Constructor with seed for reproducible permutation
+// Constructor
+template <typename IT, typename VT>
+Graph<IT,VT>::Graph(const Graph& other, unsigned int seed){
+    indptr = other.indptr; // Copy indptr as it is
+    indices = other.indices; // Copy indices as it is
+    matching = other.matching; // Copy matching as it is
+    original_cols = other.original_cols; // Copy indptr as it is
+    original_rows = other.original_rows; // Copy indices as it is
+    original_vals = other.original_vals; // Copy matching as it is
+    N = other.N;
+    M = other.M;
+    // Copy and permute indices using the specified seed
+    permuteIndicesWithSeed(seed);
+}
+
+// Private helper function to permute indices with a given seed
+template <typename IT, typename VT>
+void Graph<IT,VT>::permuteIndicesWithSeed(unsigned int seed) {
+    // Seed for reproducibility
+    std::mt19937 rng(seed);
+
+    // Shuffle the columns using OpenMP parallelization
+    #pragma omp parallel for
+    for (IT row = 0; row < indptr.size() - 1; ++row) {
+        IT row_start = indptr[row];
+        IT row_end = indptr[row + 1];
+
+        // Use a deterministic shuffle algorithm (e.g., Fisher-Yates)
+        std::shuffle(&indices[row_start], &indices[row_end], rng);
+    }
 }
 
 template <typename IT, typename VT>
