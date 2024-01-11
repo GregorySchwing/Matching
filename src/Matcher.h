@@ -14,8 +14,7 @@
 class Matcher {
 public:
     template <typename IT, typename VT>
-    static void match(Graph<IT, VT>& graph, 
-                    std::vector<Vertex<IT>> & vertexVector);
+    static void match(Graph<IT, VT>& graph);
 private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
@@ -33,9 +32,9 @@ private:
                         std::vector<Vertex<IT>> & vertexVector,
                         std::list<IT> & path);
 };
+
 template <typename IT, typename VT>
-void Matcher::match(Graph<IT, VT>& graph, 
-                    std::vector<Vertex<IT>> & vertexVector) {
+void Matcher::match(Graph<IT, VT>& graph) {
     Frontier<IT> f(graph.getN(),graph.getM());
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
@@ -57,6 +56,7 @@ void Matcher::match(Graph<IT, VT>& graph,
         }
     }
 }
+
 template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
                     const size_t V_index,
