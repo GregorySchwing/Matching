@@ -9,12 +9,12 @@ using namespace std::chrono;
 #include <list>
 int main(int argc, char **argv) {
     if (argc < 2) {
-        std::cout << "Usage:" << std::endl;
-        std::cout << argv[0] << " <file>.mtx" << std::endl;
-        std::cout << std::endl;
+        std::cout << "Usage:" << '\n';
+        std::cout << argv[0] << " <file>.mtx" << '\n';
+        std::cout << '\n';
         return 0;
     } else {
-        std::cout << "READING " <<argv[1] << std::endl;
+        std::cout << "READING " <<argv[1] << '\n';
     }
 
     std::filesystem::path in_path{argv[1]};
@@ -26,17 +26,16 @@ int main(int argc, char **argv) {
     std::vector<Vertex<int64_t>> vertexVector;
     auto allocate_start = high_resolution_clock::now();
     G.matching.resize(G.getN(),-1);
-    vertexVector.resize(G.getN());
     auto allocate_end = high_resolution_clock::now();
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
-    std::cout << "|V|-vector memory allocation time: "<< duration_alloc.count() << " milliseconds" << std::endl;
+    std::cout << "Matching (|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     auto match_start = high_resolution_clock::now();
     Matcher::match<int64_t, std::string>(G);
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<seconds>(match_end - match_start);
-    std::cout << "Maximum matching time: "<< duration.count() << " seconds" << std::endl;
+    std::cout << "Maximum matching time: "<< duration.count() << " seconds" << '\n';
     auto count = std::count_if(G.matching.begin(), G.matching.end(),[&](auto const& val){ return val > -1; });
-    std::cout << "Maximum matching size: "<<  count/2 << std::endl;
+    std::cout << "Maximum matching size: "<<  count/2 << '\n';
     std::vector<int64_t> match_count(G.getM(),0);
     // Iterate through the matching vector and update the match_count array
     for (auto const& val : G.matching) {
@@ -51,6 +50,6 @@ int main(int argc, char **argv) {
             throw std::runtime_error("Error: Match count is not equal to 0 or 2");
         }
     }
-    std::cout << "Maximum matching is valid." << std::endl;
+    std::cout << "Maximum matching is valid." << '\n';
     return 0;
 }
