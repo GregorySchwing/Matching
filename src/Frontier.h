@@ -16,12 +16,13 @@ public:
     std::vector<Vertex<IT>> vertexVector;
     Stack<IT> stack;
     Stack<IT> tree;
+    Stack<IT> path;
     DisjointSetUnion<IT> dsu;
 };
 
 // Constructor
 template <typename IT>
-Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), stack(M){
+Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), stack(M){
     dsu.reset(N);
 }
 
@@ -46,6 +47,7 @@ template <typename IT>
 void Frontier<IT>::clear(){       
     stack.clear();
     tree.clear();
+    path.clear();
 }
 
 #endif // FRONTIER_H
