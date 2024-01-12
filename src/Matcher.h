@@ -30,7 +30,9 @@ private:
                     Frontier<IT> & f);
     template <typename IT, typename VT>
     static void search_wl(Graph<IT, VT>& graph, 
-                    IT tid, IT cpu, Q&q);
+                    IT tid, IT cpu, Q&q,
+                    std::atomic<bool> & finished,
+                    std::atomic<bool> & finished_this_vertex);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -114,13 +116,19 @@ void Matcher::match_wl(Graph<IT, VT>& graph) {
     IT cpu = 0;
     IT cpu_start = -1;
     IT reader_cnt = 2;
+    std::atomic<bool> finished;
+    std::atomic<bool> finished_this_vertex;
+    finished=false;
+    finished_this_vertex=false;
     std::vector<std::thread> reader_thrs;
     for (tid = 0; tid < reader_cnt; tid++) {
         reader_thrs.emplace_back(search_wl<IT, VT>, 
                                 std::ref(graph),
                                 tid,
                                 cpu_start < 0 ? -1 : cpu_start + tid,
-                                std::ref(q));
+                                std::ref(q),
+                                std::ref(finished),
+                                std::ref(finished_this_vertex));
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
@@ -137,6 +145,8 @@ void Matcher::match_wl(Graph<IT, VT>& graph) {
         auto expire = rdtsc() + 1000;
         while (rdtsc() < expire) continue;
     }
+
+    finished=true;
 
     for (auto& thr : reader_thrs) {
         thr.join();
@@ -218,7 +228,9 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
 
 template <typename IT, typename VT>
 void Matcher::search_wl(Graph<IT, VT>& graph, 
-                    IT tid, IT cpu, Q&q){
+                    IT tid, IT cpu, Q&q,
+                    std::atomic<bool> & finished,
+                    std::atomic<bool> & finished_this_vertex){
   if (cpu >= 0) {
     cpupin(cpu);
   }
@@ -226,7 +238,7 @@ void Matcher::search_wl(Graph<IT, VT>& graph,
   uint64_t cnt = 0;
   Statistic<uint64_t> stats;
   stats.reserve(MaxI);
-  while (true) {
+  while (!finished.load()) {
     Msg* msg = reader.read();
     if (!msg) continue;
     auto now = rdtsc();
