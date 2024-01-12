@@ -11,6 +11,7 @@
 #include "Stack.h"
 #include "Frontier.h"
 #include "Statistics.h"
+#include "ThreadFactory.h"
 
 class Matcher {
 public:
@@ -18,6 +19,8 @@ public:
     static void match(Graph<IT, VT>& graph);
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
+    template <typename IT, typename VT>
+    static void match_parallel(Graph<IT, VT>& graph, Statistics<IT>& stats);
 
 private:
     template <typename IT, typename VT>
@@ -26,10 +29,13 @@ private:
                     Frontier<IT> & f);
 
     template <typename IT, typename VT>
-    static Vertex<IT> * search(Graph<IT, VT>& graph, 
+    static void search_parallel(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
-                    std::atomic<bool> &flag);
+                    std::atomic<bool> &flag,
+                    std::atomic<IT> &root,
+                    std::atomic<IT> &edgeID,
+                    std::atomic<IT> &activeThreads);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -51,6 +57,12 @@ void Matcher::match(Graph<IT, VT>& graph) {
     auto allocate_end = high_resolution_clock::now();
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+    auto TF_start = high_resolution_clock::now();
+    ThreadFactory(4);
+    auto TF_end = high_resolution_clock::now();
+    auto duration_TF = duration_cast<milliseconds>(TF_end - TF_start);
+    std::cout << "TF allocation time: "<< duration_TF.count() << " milliseconds" << '\n';
+    
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
@@ -72,6 +84,32 @@ void Matcher::match(Graph<IT, VT>& graph) {
     }
 }
 
+template <typename IT, typename VT>
+void Matcher::match_parallel(Graph<IT, VT>& graph, Statistics<IT>& stats) {
+    int numThreads=1;
+    auto allocate_start = high_resolution_clock::now();
+    std::vector<Frontier<IT>> frontierVector(numThreads, Frontier<IT>(graph.getN(), graph.getM()));
+    auto allocate_end = high_resolution_clock::now();
+    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+    std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+    std::atomic<bool> flag = true;
+    std::atomic<IT> root;
+    std::atomic<IT> edgeID;
+    std::atomic<IT> activeThreads = 0;
+    // Access the graph elements as needed
+    for (std::size_t i = 0; i < graph.getN(); ++i) {
+        if (graph.matching[i] < 0) {
+            //printf("SEARCHING FROM %ld!\n",i);
+            // Your matching logic goes here...
+            //flag = true;
+            auto search_start = high_resolution_clock::now();
+            search_parallel(graph,i,frontierVector[0],flag,root,edgeID,activeThreads);
+            auto search_end = high_resolution_clock::now();
+
+        }
+    }
+}
+
 
 template <typename IT, typename VT>
 void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
@@ -81,7 +119,6 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     Vertex<IT> * TailOfAugmentingPath;
-    std::atomic<bool> flag = true;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
         if (graph.matching[i] < 0) {
@@ -89,7 +126,7 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
             // Your matching logic goes here...
             //flag = true;
             auto search_start = high_resolution_clock::now();
-            TailOfAugmentingPath=search(graph,i,f,flag);
+            TailOfAugmentingPath=search(graph,i,f);
             auto search_end = high_resolution_clock::now();
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
@@ -179,10 +216,13 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
 
 
 template <typename IT, typename VT>
-Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
+void Matcher::search_parallel(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
-                     std::atomic<bool> &flag) {
+                    std::atomic<bool> &flag,
+                    std::atomic<IT> &root,
+                    std::atomic<IT> &edgeID,
+                    std::atomic<IT> &activeThreads) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
     int64_t FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
@@ -192,60 +232,72 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     Stack<IT> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
-    //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
-    nextVertex = &vertexVector[V_index];
-    tree.push_back(V_index);
-    nextVertex->AgeField=time++;
-    // Push edges onto stack, breaking if that stackEdge is a solution.
-    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
-    while(!stack.empty() && flag.load(std::memory_order_relaxed)){
-        stackEdge = stack.back();
-        stack.pop_back();
-        // Necessary because vertices dont know their own index.
-        // It simplifies vector creation..
-        FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
-        FromBase = &vertexVector[FromBaseVertexID];
-
-        // Necessary because vertices dont know their own index.
-        // It simplifies vector creation..
-        ToBaseVertexID = dsu[Graph<IT,VT>::EdgeTo(graph,stackEdge)];
-        ToBase = &vertexVector[ToBaseVertexID];
-
-        // Edge is between two vertices in the same blossom, continue.
-        if (FromBase == ToBase)
-            continue;
-        if(!FromBase->IsEven()){
-            std::swap(FromBase,ToBase);
-            std::swap(FromBaseVertexID,ToBaseVertexID);
+    while (true) {
+        IT localRoot = -1;
+        IT localEdgeID = -1;
+        while(!edgeID.compare_exchange_weak(localEdgeID,-1)){
+            
         }
-        // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
-        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
-            ToBase->TreeField=stackEdge;
-            ToBase->AgeField=time++;
-            tree.push_back(ToBaseVertexID);
-            //graph.SetMatchField(ToBaseVertexID,stackEdge);
-            // I'll let the augment path method recover the path.
-            return ToBase;
-        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
-            ToBase->TreeField=stackEdge;
-            ToBase->AgeField=time++;
-            tree.push_back(ToBaseVertexID);
+        activeThreads++;
+        localRoot = root.load(std::memory_order_relaxed);
+        //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
+        nextVertex = &vertexVector[localRoot];
+        tree.push_back(localRoot);
+        nextVertex->AgeField=time++;
+        stack.push_back(localEdgeID);
+        while(!stack.empty() && flag.load(std::memory_order_relaxed)){
+            stackEdge = stack.back();
+            stack.pop_back();
+            // Necessary because vertices dont know their own index.
+            // It simplifies vector creation..
+            FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
+            FromBase = &vertexVector[FromBaseVertexID];
 
-            matchedEdge=graph.GetMatchField(ToBaseVertexID);
-            nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
-            nextVertex = &vertexVector[nextVertexIndex];
-            nextVertex->AgeField=time++;
-            tree.push_back(nextVertexIndex);
+            // Necessary because vertices dont know their own index.
+            // It simplifies vector creation..
+            ToBaseVertexID = dsu[Graph<IT,VT>::EdgeTo(graph,stackEdge)];
+            ToBase = &vertexVector[ToBaseVertexID];
 
-            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+            // Edge is between two vertices in the same blossom, continue.
+            if (FromBase == ToBase)
+                continue;
+            if(!FromBase->IsEven()){
+                std::swap(FromBase,ToBase);
+                std::swap(FromBaseVertexID,ToBaseVertexID);
+            }
+            // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
+            if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+                ToBase->TreeField=stackEdge;
+                ToBase->AgeField=time++;
+                tree.push_back(ToBaseVertexID);
+                //graph.SetMatchField(ToBaseVertexID,stackEdge);
+                // I'll let the augment path method recover the path.
+                flag.store(false,std::memory_order_relaxed);
+                augment(graph,ToBase,f);
 
-        } else if (ToBase->IsEven()) {
-            // Shrink Blossoms
-            // Not sure if this is wrong or the augment method is wrong
-            Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
+            } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+                ToBase->TreeField=stackEdge;
+                ToBase->AgeField=time++;
+                tree.push_back(ToBaseVertexID);
+
+                matchedEdge=graph.GetMatchField(ToBaseVertexID);
+                nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+                nextVertex = &vertexVector[nextVertexIndex];
+                nextVertex->AgeField=time++;
+                tree.push_back(nextVertexIndex);
+
+                Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+
+            } else if (ToBase->IsEven()) {
+                // Shrink Blossoms
+                // Not sure if this is wrong or the augment method is wrong
+                Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
+            }
         }
+        f.reinit();
+        f.clear();
+        activeThreads--;
     }
-    return nullptr;
 }
 
 template <typename IT, typename VT>
