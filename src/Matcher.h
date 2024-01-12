@@ -133,6 +133,9 @@ void Matcher::match_wl(Graph<IT, VT>& graph) {
         for (auto& cur : msg.i) cur = i;
         msg.tsc = rdtsc();
         });
+        // try set smaller waiting time to increase miss cnt, and set ZERO_COPY_READ = true to see if assert could fail
+        auto expire = rdtsc() + 1000;
+        while (rdtsc() < expire) continue;
     }
 
     for (auto& thr : reader_thrs) {
