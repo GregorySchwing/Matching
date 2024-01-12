@@ -11,11 +11,15 @@
 #include "Stack.h"
 #include "Frontier.h"
 #include "Statistics.h"
+#include "SPMCQueue.h"
+#include "SPMC_Config.h"
 
 class Matcher {
 public:
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph);
+    template <typename IT, typename VT>
+    static void match_wl(Graph<IT, VT>& graph);
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
 
@@ -24,6 +28,9 @@ private:
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f);
+    template <typename IT, typename VT>
+    static void search_wl(Graph<IT, VT>& graph, 
+                    IT tid, IT cpu, Q&q);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -101,6 +108,42 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 
 
 template <typename IT, typename VT>
+void Matcher::match_wl(Graph<IT, VT>& graph) {
+    Q q;
+    IT tid = 0;
+    IT cpu = 0;
+    IT cpu_start = -1;
+    IT reader_cnt = 2;
+    std::vector<std::thread> reader_thrs;
+    for (tid = 0; tid < reader_cnt; tid++) {
+        reader_thrs.emplace_back(search_wl<IT, VT>, 
+                                std::ref(graph),
+                                tid,
+                                cpu_start < 0 ? -1 : cpu_start + tid,
+                                std::ref(q));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    if (cpu_start >= 0) {
+        cpupin(cpu_start + reader_cnt);
+    }
+
+    for (uint64_t i = 1; i <= MaxI; i++) {
+        q.write([i](Msg& msg) {
+        for (auto& cur : msg.i) cur = i;
+        msg.tsc = rdtsc();
+        });
+    }
+
+    for (auto& thr : reader_thrs) {
+        thr.join();
+    }
+    return;
+
+}
+
+
+template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f) {
@@ -167,6 +210,34 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
         }
     }
     return nullptr;
+}
+
+
+template <typename IT, typename VT>
+void Matcher::search_wl(Graph<IT, VT>& graph, 
+                    IT tid, IT cpu, Q&q){
+  if (cpu >= 0) {
+    cpupin(cpu);
+  }
+  auto reader = q.getReader();
+  uint64_t cnt = 0;
+  Statistic<uint64_t> stats;
+  stats.reserve(MaxI);
+  while (true) {
+    Msg* msg = reader.read();
+    if (!msg) continue;
+    auto now = rdtsc();
+    auto latency = now - msg->tsc;
+    stats.add(latency);
+    cnt++;
+    assert(msg->i[0] >= cnt);
+    for (auto cur : msg->i) assert(cur == msg->i[0]);
+    if (msg->i[0] == MaxI) break;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(tid * 100));
+  cout << "tid: " << tid << ", drop cnt: " << (MaxI - cnt) << ", latency stats: " << endl;
+  stats.print(cout);
+  cout << endl;
 }
 
 template <typename IT, typename VT>
