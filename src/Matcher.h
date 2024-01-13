@@ -161,7 +161,7 @@ void Matcher::match_parallel_bench(Graph<IT, VT>& graph) {
 template <typename IT, typename VT>
 void Matcher::match_parallel(Graph<IT, VT>& graph) {
   moodycamel::ConcurrentQueue<IT> q;
-  std::atomic<IT> root;
+  std::atomic<IT> root = 0;
   std::atomic<bool> finished = false;
   std::atomic<bool> foundPath = false;
 
@@ -171,17 +171,8 @@ void Matcher::match_parallel(Graph<IT, VT>& graph) {
   read_messages.resize(num_threads);
   create_threads_concurrentqueue(threads, num_threads,read_messages,graph,q,root,foundPath,finished);
 
-  auto duration = std::chrono::milliseconds(20000);
-
+  auto duration = std::chrono::milliseconds(1000);
   IT written_messages = 0;
-
-  std::thread sender_thread{[&]() {
-    int u = 0;
-    //while (u++<100000) {
-    while (!finished.load()) {
-      q.enqueue(written_messages++);
-    }
-  }};
   cpu_set_t my_set;
   CPU_ZERO(&my_set);
   CPU_SET(0, &my_set);
@@ -189,12 +180,19 @@ void Matcher::match_parallel(Graph<IT, VT>& graph) {
     std::cout << "sched_setaffinity error: " << strerror(errno) << std::endl;
   }
 
-  std::this_thread::sleep_for(duration);
+    // Access the graph elements as needed
+    for (std::size_t i = 0; i < graph.getN(); ++i) {
+        if (graph.matching[i] < 0) {
+            written_messages+=graph.indptr[i+1]-graph.indptr[i];
+            q.enqueue_bulk(graph.indices.cbegin()+graph.indptr[i],graph.indptr[i+1]-graph.indptr[i]);
+        }
+        std::cout << "Pushed " << i << "'s " << graph.indptr[i+1]-graph.indptr[i] << " edges" << std::endl;
+    }
+
+
   while(q.size_approx()){}
 
   finished.store(true);
-
-  sender_thread.join();
 
   print_results(BenchResult{num_threads, written_messages, read_messages, duration});
 
@@ -287,8 +285,10 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
         stack.push_back(E_index);
         read_messages[tid-1]++;
         while(!foundPath.load()&&!stack.empty()){
-
+            stack.pop_back();
         }
+        f.reinit();
+        f.clear();
     }
 }
 
