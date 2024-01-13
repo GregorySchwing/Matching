@@ -11,11 +11,17 @@
 #include "Stack.h"
 #include "Frontier.h"
 #include "Statistics.h"
+// Parallel
+#include <broadcast_queue.h>
+#include <cassert>
+
 
 class Matcher {
 public:
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph);
+    template <typename IT, typename VT>
+    static void match_parallel(Graph<IT, VT>& graph);
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
 
@@ -64,6 +70,18 @@ void Matcher::match(Graph<IT, VT>& graph) {
             }
         }
     }
+}
+#include "ThreadFactory.h"
+template <typename IT, typename VT>
+void Matcher::match_parallel(Graph<IT, VT>& graph) {
+
+  constexpr unsigned num_threads = 4;
+  std::vector<std::thread> threads(num_threads);
+  create_threads(threads, num_threads);
+  for (auto& t : threads) {
+    t.join();
+  }
+  return ;
 }
 
 
