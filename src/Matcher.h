@@ -74,10 +74,10 @@ void Matcher::match(Graph<IT, VT>& graph) {
 
 template <typename IT, typename VT>
 void Matcher::match_parallel(Graph<IT, VT>& graph) {
-
+  moodycamel::ConcurrentQueue<int> q;
   constexpr unsigned num_threads = 15;
   std::vector<std::thread> threads(num_threads);
-  create_threads_concurrentqueue(threads, num_threads);
+  create_threads_concurrentqueue(threads, num_threads,q);
   for (auto& t : threads) {
     t.join();
   }
