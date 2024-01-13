@@ -98,6 +98,7 @@ void create_threads_bcast_queue(std::vector<std::thread> &threads, unsigned num_
   print_results(BenchResult{num_threads, written_messages, read_messages, duration});
 }
 
+
 void create_threads_concurrentqueue(std::vector<std::thread> &threads, unsigned num_threads){
   std::vector<size_t> read_messages;
   read_messages.resize(num_threads);
