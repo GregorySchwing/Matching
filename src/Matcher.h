@@ -11,6 +11,7 @@
 #include "Stack.h"
 #include "Frontier.h"
 #include "Statistics.h"
+#include "concurrentqueue.h"
 
 class Matcher {
 public:
@@ -18,6 +19,8 @@ public:
     static void match(Graph<IT, VT>& graph);
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
+    template <typename IT, typename VT>
+    static void match_parallel(Graph<IT, VT>& graph);
 
 private:
     template <typename IT, typename VT>
@@ -63,6 +66,43 @@ void Matcher::match(Graph<IT, VT>& graph) {
                 //printf("DIDNT FOUND AP!\n");
             }
         }
+    }
+}
+
+void read_thread(int tid, 
+                std::atomic<bool> &finished,
+                moodycamel::ConcurrentQueue<int> &q) {
+    int item;
+    while(!finished.load()){
+        if(q.try_dequeue(item)){
+            std::cout << "tid: " << tid << " item: " << item << std::endl;
+        } else {
+            continue;
+        }
+    }
+}
+
+template <typename IT, typename VT>
+void Matcher::match_parallel(Graph<IT, VT>& graph) {
+    moodycamel::ConcurrentQueue<int> q;
+    std::vector<std::thread> reader_thrs;
+    std::atomic<bool> finished;
+    finished.store(false);
+    int reader_cnt = 2;
+    for (int tid = 0; tid < reader_cnt; tid++) {
+        reader_thrs.emplace_back(read_thread, 
+                                tid,
+                                std::ref(finished),
+                                std::ref(q));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    q.enqueue(25);
+    while (q.size_approx()){
+
+    }
+    finished.store(true);
+    for (auto& thr : reader_thrs) {
+        thr.join();
     }
 }
 
