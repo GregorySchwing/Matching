@@ -32,7 +32,8 @@ private:
     static void search_wl(Graph<IT, VT>& graph, 
                     IT tid, IT cpu, Q&q,
                     std::atomic<bool> & finished,
-                    std::atomic<bool> & finished_this_vertex);
+                    std::atomic<bool> & finished_this_vertex,
+                    std::atomic<IT> & numWorkProcessed);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -114,10 +115,12 @@ void Matcher::match_wl(Graph<IT, VT>& graph) {
     Q q;
     IT tid = 0;
     IT cpu = 0;
-    IT cpu_start = -1;
+    IT cpu_start = 0;
     IT reader_cnt = 2;
     std::atomic<bool> finished;
     std::atomic<bool> finished_this_vertex;
+    IT numWorkPushed = 0;
+    std::atomic<IT> numWorkProcessed;
     finished=false;
     finished_this_vertex=false;
     std::vector<std::thread> reader_thrs;
@@ -128,7 +131,8 @@ void Matcher::match_wl(Graph<IT, VT>& graph) {
                                 cpu_start < 0 ? -1 : cpu_start + tid,
                                 std::ref(q),
                                 std::ref(finished),
-                                std::ref(finished_this_vertex));
+                                std::ref(finished_this_vertex),
+                                std::ref(numWorkProcessed));
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
@@ -137,6 +141,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph) {
     }
 
     for (uint64_t i = 1; i <= MaxI; i++) {
+        numWorkPushed++;
         q.write([i](Msg& msg) {
         for (auto& cur : msg.i) cur = i;
         msg.tsc = rdtsc();
@@ -145,7 +150,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph) {
         auto expire = rdtsc() + 1000;
         while (rdtsc() < expire) continue;
     }
-
+    //while(numWorkPushed!=numWorkProcessed){}
     finished=true;
 
     for (auto& thr : reader_thrs) {
@@ -230,7 +235,8 @@ template <typename IT, typename VT>
 void Matcher::search_wl(Graph<IT, VT>& graph, 
                     IT tid, IT cpu, Q&q,
                     std::atomic<bool> & finished,
-                    std::atomic<bool> & finished_this_vertex){
+                    std::atomic<bool> & finished_this_vertex,
+                    std::atomic<IT> & numWorkProcessed){
   if (cpu >= 0) {
     cpupin(cpu);
   }
@@ -245,6 +251,7 @@ void Matcher::search_wl(Graph<IT, VT>& graph,
     auto latency = now - msg->tsc;
     stats.add(latency);
     cnt++;
+    numWorkProcessed++;
     assert(msg->i[0] >= cnt);
     for (auto cur : msg->i) assert(cur == msg->i[0]);
     if (msg->i[0] == MaxI) break;
