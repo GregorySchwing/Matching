@@ -13,15 +13,16 @@ endif()
 
 # include fast_matrix_market
 add_subdirectory(fast_matrix_market)
+add_subdirectory(broadcast_queue)
 
 # simple example
 add_executable(matcher Main.cpp)
-target_include_directories(matcher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(matcher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/broadcast_queue)
 # Enable OpenMP
 find_package(OpenMP REQUIRED)
 if(OpenMP_CXX_FOUND)
     target_compile_options(matcher PRIVATE ${OpenMP_CXX_FLAGS})
-    target_link_libraries(matcher PRIVATE fast_matrix_market::fast_matrix_market ${OpenMP_CXX_FLAGS})
+    target_link_libraries(matcher PRIVATE fast_matrix_market::fast_matrix_market ${OpenMP_CXX_FLAGS} broadcast_queue pthread hwloc)
 else()
-    target_link_libraries(matcher PRIVATE fast_matrix_market::fast_matrix_market)
+    target_link_libraries(matcher PRIVATE fast_matrix_market::fast_matrix_market broadcast_queue pthread hwloc)
 endif()
