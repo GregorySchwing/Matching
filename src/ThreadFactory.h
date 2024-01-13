@@ -10,10 +10,47 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include "broadcast_queue.h"
+#include "semaphore_waiting_strategy.h"
 
+struct BenchResult {
+  size_t num_readers;
+  size_t written_messages;
+  std::vector<size_t> read_messages;
+  std::chrono::milliseconds duration;
+};
+
+void print_results(const BenchResult &results) {
+  size_t tot_read_messages = 0;
+  for (size_t n : results.read_messages)
+    tot_read_messages += n;
+
+  printf("duration: \t\t %zu millseconds\n", results.duration.count());
+  printf("num_readers: \t\t %zu reader\n", results.num_readers);
+  printf("written_msgs: \t\t %zu message/sec\n",
+         results.written_messages / (results.duration.count() / 1000));
+  printf("avg_read_msgs: \t\t %zu message/sec\n",
+         (tot_read_messages / results.num_readers) /
+             (results.duration.count() / 1000));
+  printf("\n");
+}
 void create_threads(std::vector<std::thread> &threads, unsigned num_threads){
+  int capacity = 1024;
+  std::vector<size_t> read_messages;
+  read_messages.resize(num_threads);
+  static constexpr size_t CAPACITY = 3;
+  bool should_stop = false;
 
+  auto duration = std::chrono::milliseconds(10000);
+  broadcast_queue::sender<int,broadcast_queue::semaphore_waiting_strategy> send{CAPACITY};
 
+  size_t written_messages = 0;
+
+  std::thread sender_thread{[&]() {
+    while (!should_stop) {
+      send.push(written_messages++);
+    }
+  }};
   cpu_set_t my_set;
   CPU_ZERO(&my_set);
   CPU_SET(0, &my_set);
@@ -21,21 +58,18 @@ void create_threads(std::vector<std::thread> &threads, unsigned num_threads){
     std::cout << "sched_setaffinity error: " << strerror(errno) << std::endl;
   }
 
-  // A mutex ensures orderly access to std::cout from multiple threads.
-  std::mutex iomutex;
-  for (unsigned i = 1; i < num_threads+1; ++i) {
-    threads[i-1] = std::thread([&iomutex, i] {
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
-      while (1) {
-        {
-          // Use a lexical scope and lock_guard to safely lock the mutex only
-          // for the duration of std::cout usage.
-          std::lock_guard<std::mutex> iolock(iomutex);
-          std::cout << "Thread #" << i << ": on CPU " << sched_getcpu() << "\n";
-        }
 
-        // Simulate important work done by the tread by sleeping for a bit...
-        std::this_thread::sleep_for(std::chrono::milliseconds(900));
+  for (unsigned i = 1; i < num_threads+1; ++i) {
+    threads[i-1] = std::thread([&, i] {
+      auto receiver = send.subscribe();
+
+      while (!should_stop) {
+        broadcast_queue::Error error;
+        int msg;
+
+        error = receiver.try_dequeue(&msg);
+        if (error == broadcast_queue::Error::None)
+          read_messages[i]++;
       }
     });
 
@@ -51,6 +85,13 @@ void create_threads(std::vector<std::thread> &threads, unsigned num_threads){
     }
   }
 
+  std::this_thread::sleep_for(duration);
+
+  should_stop = true;
+
+  sender_thread.join();
+
+  print_results(BenchResult{num_threads, written_messages, read_messages, duration});
 }
 
 #endif
