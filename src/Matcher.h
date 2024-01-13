@@ -14,6 +14,7 @@
 // Parallel
 #include "ThreadFactory.h"
 #include <cassert>
+#include "concurrentqueue.h"
 
 
 class Matcher {
@@ -26,10 +27,23 @@ public:
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
 
 private:
+    template <typename T>
+    static void create_threads_concurrentqueue(std::vector<std::thread> &threads, 
+                                        unsigned num_threads,
+                                        moodycamel::ConcurrentQueue<T> &q);
+
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f);
+
+    template <typename T>
+    static void search_persistent(//Graph<IT, VT>& graph,
+                                    moodycamel::ConcurrentQueue<T> &q,
+                                    std::vector<size_t> &read_messages,
+                                    bool &should_stop,
+                                    int i);
+
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -117,6 +131,18 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     }
 }
 
+template <typename T>
+void Matcher::search_persistent(//Graph<IT, VT>& graph,
+                                    moodycamel::ConcurrentQueue<T> &q,
+                                    std::vector<size_t> &read_messages,
+                                    bool &should_stop,
+                                    int i){
+    while (!should_stop) {
+        T item;
+        if(q.try_dequeue(item))
+            read_messages[i-1]++;
+    }
+}
 
 template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
@@ -292,6 +318,72 @@ void Matcher::pathThroughBlossom(Graph<IT, VT>& graph,
         }
     }
 }
+
+
+template <typename T>
+void Matcher::create_threads_concurrentqueue(std::vector<std::thread> &threads, 
+                                    unsigned num_threads,
+                                    moodycamel::ConcurrentQueue<T> &q){
+  std::vector<size_t> read_messages;
+  read_messages.resize(num_threads);
+  bool should_stop = false;
+
+  auto duration = std::chrono::milliseconds(2000);
+
+  T written_messages = 0;
+
+  std::thread sender_thread{[&]() {
+    int u = 0;
+    while (u++<100000) {
+    //while (!should_stop) {
+      q.enqueue(written_messages++);
+    }
+  }};
+  cpu_set_t my_set;
+  CPU_ZERO(&my_set);
+  CPU_SET(0, &my_set);
+  if (sched_setaffinity(0, sizeof(cpu_set_t), &my_set)) {
+    std::cout << "sched_setaffinity error: " << strerror(errno) << std::endl;
+  }
+
+
+  for (unsigned i = 1; i < num_threads+1; ++i) {
+    threads[i-1] = std::thread(&Matcher::search_persistent<T>, 
+                                std::ref(q),
+                                std::ref(read_messages),
+                                std::ref(should_stop),i);
+    /*
+    threads[i-1] = std::thread([&, i] {
+
+      while (!should_stop) {
+        T item;
+        if(q.try_dequeue(item))
+          read_messages[i-1]++;
+      }
+    });
+    */
+    // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
+    // only CPU i as set.
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(i, &cpuset);
+    int rc = pthread_setaffinity_np(threads[i-1].native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    }
+  }
+
+  std::this_thread::sleep_for(duration);
+  while(q.size_approx()){}
+
+  should_stop = true;
+
+  sender_thread.join();
+
+  print_results(BenchResult{num_threads, written_messages, read_messages, duration});
+}
+
 
 
 #endif
