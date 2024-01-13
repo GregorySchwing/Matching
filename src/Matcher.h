@@ -57,9 +57,9 @@ private:
                                     Graph<IT, VT>& graph, 
                                     moodycamel::ConcurrentQueue<IT> &q,
                                     std::atomic<IT> &root,
-                                    bool &foundPath,
+                                    volatile bool &foundPath,
                                     std::atomic<IT> &activeThreads,
-                                    bool &finished);
+                                    volatile bool &finished);
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
                     const size_t V_index,
@@ -86,9 +86,9 @@ private:
     static void search_persistent_one_atomic(Graph<IT, VT>& graph,
                                     moodycamel::ConcurrentQueue<IT> &q,
                                     std::atomic<IT> &root,
-                                    bool &foundPath,
+                                    volatile bool &foundPath,
                                     std::atomic<IT> &activeThreads,
-                                    bool &finished,
+                                    volatile bool &finished,
                                     std::vector<size_t> &read_messages,
                                     int tid);
 
@@ -238,8 +238,8 @@ template <typename IT, typename VT>
 void Matcher::match_parallel_one_atomic(Graph<IT, VT>& graph) {
     moodycamel::ConcurrentQueue<IT> q;
     std::atomic<IT> root = 0;
-    bool finished = false;
-    bool foundPath = false;
+    volatile bool finished = false;
+    volatile bool foundPath = false;
     std::atomic<IT> activeThreads = 0;
 
     constexpr unsigned num_threads = 15;
@@ -386,9 +386,9 @@ template <typename IT, typename VT>
 void Matcher::search_persistent_one_atomic(Graph<IT, VT>& graph,
                                     moodycamel::ConcurrentQueue<IT> &q,
                                     std::atomic<IT> &root,
-                                    bool &foundPath,
+                                    volatile bool &foundPath,
                                     std::atomic<IT> &activeThreads,
-                                    bool &finished,
+                                    volatile bool &finished,
                                     std::vector<size_t> &read_messages,
                                     int tid){
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
@@ -681,9 +681,9 @@ void Matcher::create_threads_concurrentqueue_one_atomic(std::vector<std::thread>
                                     Graph<IT, VT>& graph, 
                                     moodycamel::ConcurrentQueue<IT> &q,
                                     std::atomic<IT> &root,
-                                    bool &foundPath,
+                                    volatile bool &foundPath,
                                     std::atomic<IT> &activeThreads,
-                                    bool &finished){
+                                    volatile bool &finished){
 
   for (unsigned i = 1; i < num_threads+1; ++i) {
     threads[i-1] = std::thread(&Matcher::search_persistent_one_atomic<IT,VT>,
