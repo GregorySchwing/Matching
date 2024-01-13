@@ -46,6 +46,7 @@ private:
                                     moodycamel::ConcurrentQueue<IT> &q,
                                     std::atomic<IT> &root,
                                     std::atomic<bool> &foundPath,
+                                    std::atomic<IT> &activeThreads,
                                     std::atomic<bool> &finished);
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
@@ -64,8 +65,9 @@ private:
     static void search_persistent(Graph<IT, VT>& graph,
                                     moodycamel::ConcurrentQueue<IT> &q,
                                     std::atomic<IT> &root,
-                                    std::atomic<bool> &finished,
                                     std::atomic<bool> &foundPath,
+                                    std::atomic<IT> &activeThreads,
+                                    std::atomic<bool> &finished,
                                     std::vector<size_t> &read_messages,
                                     int tid);
 
@@ -164,12 +166,13 @@ void Matcher::match_parallel(Graph<IT, VT>& graph) {
     std::atomic<IT> root = 0;
     std::atomic<bool> finished = false;
     std::atomic<bool> foundPath = false;
+    std::atomic<IT> activeThreads = 0;
 
     constexpr unsigned num_threads = 15;
     std::vector<std::thread> threads(num_threads);
     std::vector<size_t> read_messages;
     read_messages.resize(num_threads);
-    create_threads_concurrentqueue(threads, num_threads,read_messages,graph,q,root,foundPath,finished);
+    create_threads_concurrentqueue(threads, num_threads,read_messages,graph,q,root,foundPath,activeThreads,finished);
 
     IT written_messages = 0;
     cpu_set_t my_set;
@@ -183,9 +186,15 @@ void Matcher::match_parallel(Graph<IT, VT>& graph) {
     for (std::size_t i = 0; i < graph.getN(); ++i) {
         auto edgeCount = graph.indptr[i+1]-graph.indptr[i];
         if (graph.matching[i] < 0 && edgeCount) {
+            root.store(i);
+            foundPath.store(false);
             written_messages+=edgeCount;
             q.enqueue_bulk(graph.indices.cbegin()+graph.indptr[i],edgeCount);
-            std::cout << "Pushed " << i << "'s " << edgeCount << " edges" << std::endl;
+            while(!foundPath.load() || activeThreads.load()){}
+            // Once a path has been found, ensure q is empty for next iteration.
+            IT pop;
+            while(q.try_dequeue(pop)){}
+            //std::cout << "Pushed " << i << "'s " << edgeCount << " edges" << std::endl;
         }
     }
     auto match_end = high_resolution_clock::now();
@@ -258,6 +267,7 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
                                     moodycamel::ConcurrentQueue<IT> &q,
                                     std::atomic<IT> &root,
                                     std::atomic<bool> &foundPath,
+                                    std::atomic<IT> &activeThreads,
                                     std::atomic<bool> &finished,
                                     std::vector<size_t> &read_messages,
                                     int tid){
@@ -276,6 +286,8 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
         IT E_index;
         if(!q.try_dequeue(E_index))
             continue;
+        // Not exactly threadsafe, but pretty close.
+        activeThreads++;
         IT V_index = root.load();
         
         IT time = 0;
@@ -288,8 +300,10 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
         while(!foundPath.load()&&!stack.empty()){
             stack.pop_back();
         }
+        foundPath.store(true);
         f.reinit();
         f.clear();
+        activeThreads--;
     }
 }
 
@@ -511,6 +525,7 @@ void Matcher::create_threads_concurrentqueue(std::vector<std::thread> &threads,
                                     moodycamel::ConcurrentQueue<IT> &q,
                                     std::atomic<IT> &root,
                                     std::atomic<bool> &foundPath,
+                                    std::atomic<IT> &activeThreads,
                                     std::atomic<bool> &finished){
 
   for (unsigned i = 1; i < num_threads+1; ++i) {
@@ -519,6 +534,7 @@ void Matcher::create_threads_concurrentqueue(std::vector<std::thread> &threads,
                                 std::ref(q),
                                 std::ref(root),
                                 std::ref(foundPath),
+                                std::ref(activeThreads),
                                 std::ref(finished),
                                 std::ref(read_messages),
                                 i);
