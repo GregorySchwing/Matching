@@ -160,46 +160,47 @@ void Matcher::match_parallel_bench(Graph<IT, VT>& graph) {
 
 template <typename IT, typename VT>
 void Matcher::match_parallel(Graph<IT, VT>& graph) {
-  moodycamel::ConcurrentQueue<IT> q;
-  std::atomic<IT> root = 0;
-  std::atomic<bool> finished = false;
-  std::atomic<bool> foundPath = false;
+    moodycamel::ConcurrentQueue<IT> q;
+    std::atomic<IT> root = 0;
+    std::atomic<bool> finished = false;
+    std::atomic<bool> foundPath = false;
 
-  constexpr unsigned num_threads = 15;
-  std::vector<std::thread> threads(num_threads);
-  std::vector<size_t> read_messages;
-  read_messages.resize(num_threads);
-  create_threads_concurrentqueue(threads, num_threads,read_messages,graph,q,root,foundPath,finished);
+    constexpr unsigned num_threads = 15;
+    std::vector<std::thread> threads(num_threads);
+    std::vector<size_t> read_messages;
+    read_messages.resize(num_threads);
+    create_threads_concurrentqueue(threads, num_threads,read_messages,graph,q,root,foundPath,finished);
 
-  auto duration = std::chrono::milliseconds(1000);
-  IT written_messages = 0;
-  cpu_set_t my_set;
-  CPU_ZERO(&my_set);
-  CPU_SET(0, &my_set);
-  if (sched_setaffinity(0, sizeof(cpu_set_t), &my_set)) {
-    std::cout << "sched_setaffinity error: " << strerror(errno) << std::endl;
-  }
-
+    IT written_messages = 0;
+    cpu_set_t my_set;
+    CPU_ZERO(&my_set);
+    CPU_SET(0, &my_set);
+    if (sched_setaffinity(0, sizeof(cpu_set_t), &my_set)) {
+        std::cout << "sched_setaffinity error: " << strerror(errno) << std::endl;
+    }
+    auto match_start = high_resolution_clock::now();
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
-        if (graph.matching[i] < 0) {
-            written_messages+=graph.indptr[i+1]-graph.indptr[i];
-            q.enqueue_bulk(graph.indices.cbegin()+graph.indptr[i],graph.indptr[i+1]-graph.indptr[i]);
+        auto edgeCount = graph.indptr[i+1]-graph.indptr[i];
+        if (graph.matching[i] < 0 && edgeCount) {
+            written_messages+=edgeCount;
+            q.enqueue_bulk(graph.indices.cbegin()+graph.indptr[i],edgeCount);
+            std::cout << "Pushed " << i << "'s " << edgeCount << " edges" << std::endl;
         }
-        std::cout << "Pushed " << i << "'s " << graph.indptr[i+1]-graph.indptr[i] << " edges" << std::endl;
     }
+    auto match_end = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(match_end - match_start);
 
+    while(q.size_approx()){}
 
-  while(q.size_approx()){}
+    finished.store(true);
 
-  finished.store(true);
+    print_results(BenchResult{num_threads, written_messages, read_messages, duration});
 
-  print_results(BenchResult{num_threads, written_messages, read_messages, duration});
-
-  for (auto& t : threads) {
-    t.join();
-  }
-  return;
+    for (auto& t : threads) {
+        t.join();
+    }
+    return;
 }
 
 

@@ -29,11 +29,11 @@ void print_results(const BenchResult &results) {
 
   printf("duration: \t\t %zu millseconds\n", results.duration.count());
   printf("num_readers: \t\t %zu reader\n", results.num_readers);
-  printf("written_msgs: \t\t %zu message/sec\n",
-         results.written_messages / (results.duration.count() / 1000));
-  printf("avg_read_msgs: \t\t %zu message/sec\n",
-         (tot_read_messages / results.num_readers) /
-             (results.duration.count() / 1000));
+  printf("written_msgs: \t\t %f message/millseconds\n",
+         (float)results.written_messages / (results.duration.count()));
+  printf("avg_read_msgs: \t\t %f message/millseconds\n",
+         (float)(tot_read_messages / results.num_readers) /
+             results.duration.count());
   printf("\n");
 }
 
