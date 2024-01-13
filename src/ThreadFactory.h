@@ -12,6 +12,7 @@
 #include <errno.h>
 #include "broadcast_queue.h"
 #include "semaphore_waiting_strategy.h"
+#include "concurrentqueue.h"
 
 struct BenchResult {
   size_t num_readers;
@@ -90,7 +91,6 @@ void create_threads_bcast_queue(std::vector<std::thread> &threads, unsigned num_
   }
 
   std::this_thread::sleep_for(duration);
-
   should_stop = true;
 
   sender_thread.join();
@@ -98,15 +98,13 @@ void create_threads_bcast_queue(std::vector<std::thread> &threads, unsigned num_
   print_results(BenchResult{num_threads, written_messages, read_messages, duration});
 }
 
-#include "concurrentqueue.h"
 void create_threads_concurrentqueue(std::vector<std::thread> &threads, unsigned num_threads){
-  int capacity = 1024;
   std::vector<size_t> read_messages;
   read_messages.resize(num_threads);
   moodycamel::ConcurrentQueue<int> q;
   bool should_stop = false;
 
-  auto duration = std::chrono::milliseconds(20000);
+  auto duration = std::chrono::milliseconds(2000);
 
   size_t written_messages = 0;
 
@@ -148,6 +146,7 @@ void create_threads_concurrentqueue(std::vector<std::thread> &threads, unsigned 
   }
 
   std::this_thread::sleep_for(duration);
+  while(q.size_approx()){}
 
   should_stop = true;
 

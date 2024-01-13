@@ -12,7 +12,7 @@
 #include "Frontier.h"
 #include "Statistics.h"
 // Parallel
-#include <broadcast_queue.h>
+#include "ThreadFactory.h"
 #include <cassert>
 
 
@@ -71,23 +71,17 @@ void Matcher::match(Graph<IT, VT>& graph) {
         }
     }
 }
-#include "ThreadFactory.h"
+
 template <typename IT, typename VT>
 void Matcher::match_parallel(Graph<IT, VT>& graph) {
 
-  constexpr unsigned num_threads = 4;
+  constexpr unsigned num_threads = 15;
   std::vector<std::thread> threads(num_threads);
-  create_threads_bcast_queue(threads, num_threads);
-
-  for (auto& t : threads) {
-    t.join();
-  }
   create_threads_concurrentqueue(threads, num_threads);
-
   for (auto& t : threads) {
     t.join();
   }
-  return ;
+  return;
 }
 
 
