@@ -77,7 +77,13 @@ void Matcher::match_parallel(Graph<IT, VT>& graph) {
 
   constexpr unsigned num_threads = 4;
   std::vector<std::thread> threads(num_threads);
-  create_threads(threads, num_threads);
+  create_threads_bcast_queue(threads, num_threads);
+
+  for (auto& t : threads) {
+    t.join();
+  }
+  create_threads_concurrentqueue(threads, num_threads);
+
   for (auto& t : threads) {
     t.join();
   }

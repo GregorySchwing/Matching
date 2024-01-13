@@ -4,3 +4,6 @@
 [submodule "broadcast_queue"]
 	path = broadcast_queue
 	url = https://github.com/theartful/broadcast_queue.git
+[submodule "concurrentqueue"]
+	path = concurrentqueue
+	url = https://github.com/cameron314/concurrentqueue.git
