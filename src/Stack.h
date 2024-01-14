@@ -9,6 +9,7 @@ private:
     std::vector<IT> data;
     size_t top;
     size_t capacity;
+    size_t threshold;
 
 public:
     // Constructor
@@ -25,6 +26,12 @@ public:
     
     // Method to pop an element from the stack
     size_t size();
+
+
+    size_t valid_entries();
+
+    // Method to pop an element from the stack
+    size_t get_threshold();
 
     // Method to pop an element from the stack
     bool empty();
@@ -56,7 +63,7 @@ public:
 
 // Constructor
 template <typename IT>
-Stack<IT>::Stack(size_t capacity) : data(capacity), top(0), capacity(capacity) {}
+Stack<IT>::Stack(size_t capacity) : data(capacity), top(0), capacity(capacity), threshold(capacity*0.20) {}
 
 // Copy constructor
 template <typename IT>
@@ -68,6 +75,17 @@ size_t Stack<IT>::size() {
     return top;
 }
 
+// Method to push an element onto the stack
+template <typename IT>
+size_t Stack<IT>::valid_entries() {
+    return top;
+}
+
+// Method to push an element onto the stack
+template <typename IT>
+size_t Stack<IT>::get_threshold() {
+    return threshold;
+}
 
 // Method to push an element onto the stack
 template <typename IT>

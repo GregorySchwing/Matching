@@ -672,8 +672,13 @@ void Matcher::search_persistent_two_queues(Graph<IT, VT>& graph,
             // Push edges onto stack, breaking if that stackEdge is a solution.
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
             while(!stack.empty()){
+                if (stack.valid_entries()>stack.get_threshold()){
+                    // do fork logic
+                }
                 stackEdge = stack.back();
                 stack.pop_back();
+                if (stackEdge < 0)
+                    continue;
                 // Necessary because vertices dont know their own index.
                 // It simplifies vector creation..
                 FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
