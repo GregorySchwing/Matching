@@ -28,6 +28,8 @@ public:
     template <typename IT, typename VT>
     static void match_parallel_one_atomic(Graph<IT, VT>& graph);
     template <typename IT, typename VT>
+    static void match_parallel_baseline(Graph<IT, VT>& graph);
+    template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
 
 private:
@@ -61,6 +63,14 @@ private:
                                     std::atomic<IT> &activeThreads,
                                     volatile bool &finished);
     template <typename IT, typename VT>
+    static void create_threads_concurrentqueue_baseline(std::vector<std::thread> &threads, 
+                                    unsigned num_threads,
+                                    std::vector<size_t> & read_messages,
+                                    Graph<IT, VT>& graph, 
+                                    moodycamel::ConcurrentQueue<IT> &q,
+                                    volatile bool &foundPath,
+                                    volatile bool &finished);
+    template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f);
@@ -91,7 +101,13 @@ private:
                                     volatile bool &finished,
                                     std::vector<size_t> &read_messages,
                                     int tid);
-
+    template <typename IT, typename VT>
+    static void search_persistent_baseline(Graph<IT, VT>& graph,
+                                    moodycamel::ConcurrentQueue<IT> &q,
+                                    std::vector<size_t> &read_messages,
+                                    volatile bool &foundPath,
+                                    volatile bool &finished,
+                                    int tid);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -290,6 +306,50 @@ void Matcher::match_parallel_one_atomic(Graph<IT, VT>& graph) {
 
 
 template <typename IT, typename VT>
+void Matcher::match_parallel_baseline(Graph<IT, VT>& graph) {
+    moodycamel::ConcurrentQueue<IT> q;
+    volatile bool finished = false;
+    volatile bool foundPath = false;
+    constexpr unsigned num_threads = 1;
+    std::vector<std::thread> threads(num_threads);
+    std::vector<size_t> read_messages;
+    read_messages.resize(num_threads);
+    create_threads_concurrentqueue_baseline(threads, num_threads,read_messages,graph,q,foundPath,finished);
+
+    IT written_messages = 0;
+    cpu_set_t my_set;
+    CPU_ZERO(&my_set);
+    CPU_SET(0, &my_set);
+    if (sched_setaffinity(0, sizeof(cpu_set_t), &my_set)) {
+        std::cout << "sched_setaffinity error: " << strerror(errno) << std::endl;
+    }
+    auto match_start = high_resolution_clock::now();
+    // Access the graph elements as needed
+    for (std::size_t i = 0; i < graph.getN(); ++i) {
+        if (graph.matching[i] < 0) {
+            q.enqueue(i);
+            while(q.size_approx()){}
+        }
+    }
+    while(!foundPath){}
+    auto match_end = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(match_end - match_start);
+
+    finished=true;
+
+    
+    print_results(BenchResult{num_threads, written_messages, read_messages, duration});
+
+    for (auto& t : threads) {
+        t.join();
+    }
+    
+    return;
+}
+
+
+
+template <typename IT, typename VT>
 void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     auto allocate_start = high_resolution_clock::now();
     Frontier<IT> f(graph.getN(),graph.getM());
@@ -429,6 +489,98 @@ void Matcher::search_persistent_one_atomic(Graph<IT, VT>& graph,
     }
 }
 
+
+template <typename IT, typename VT>
+void Matcher::search_persistent_baseline(Graph<IT, VT>& graph,
+                                    moodycamel::ConcurrentQueue<IT> &q,
+                                    std::vector<size_t> &read_messages,
+                                    volatile bool &foundPath,
+                                    volatile bool &finished,
+                                    int tid){
+    Vertex<IT> *FromBase,*ToBase, *nextVertex;
+    IT FromBaseVertexID,ToBaseVertexID;
+    IT stackEdge, matchedEdge;
+    IT nextVertexIndex;
+
+    Frontier<IT> f(graph.getN(),graph.getM());
+    Stack<IT> &stack = f.stack;
+    Stack<IT> &tree = f.tree;
+    DisjointSetUnion<IT> &dsu = f.dsu;
+    std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
+
+    while (!finished) {
+        IT V_index;
+        if(!q.try_dequeue(V_index))
+            continue;
+        else{
+            read_messages[tid-1]++;
+            IT time = 0;
+            //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
+            nextVertex = &vertexVector[V_index];
+            tree.push_back(V_index);
+            nextVertex->AgeField=time++;
+            // Push edges onto stack, breaking if that stackEdge is a solution.
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
+            while(!stack.empty()){
+                stackEdge = stack.back();
+                stack.pop_back();
+                // Necessary because vertices dont know their own index.
+                // It simplifies vector creation..
+                FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
+                FromBase = &vertexVector[FromBaseVertexID];
+
+                // Necessary because vertices dont know their own index.
+                // It simplifies vector creation..
+                ToBaseVertexID = dsu[Graph<IT,VT>::EdgeTo(graph,stackEdge)];
+                ToBase = &vertexVector[ToBaseVertexID];
+
+                // Edge is between two vertices in the same blossom, continue.
+                if (FromBase == ToBase)
+                    continue;
+                if(!FromBase->IsEven()){
+                    std::swap(FromBase,ToBase);
+                    std::swap(FromBaseVertexID,ToBaseVertexID);
+                }
+                // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
+                if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+                    ToBase->TreeField=stackEdge;
+                    ToBase->AgeField=time++;
+                    tree.push_back(ToBaseVertexID);
+                    //graph.SetMatchField(ToBaseVertexID,stackEdge);
+                    // I'll let the augment path method recover the path.
+                    // Safely kills other/this walker and allows for next iteration to begin
+                    foundPath=true;
+                    augment(graph,ToBase,f);
+                    f.reinit();
+                    // clearing stack ensures this walker exits loop
+                    f.clear();
+
+                } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+                    ToBase->TreeField=stackEdge;
+                    ToBase->AgeField=time++;
+                    tree.push_back(ToBaseVertexID);
+
+                    matchedEdge=graph.GetMatchField(ToBaseVertexID);
+                    nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+                    nextVertex = &vertexVector[nextVertexIndex];
+                    nextVertex->AgeField=time++;
+                    tree.push_back(nextVertexIndex);
+
+                    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+
+                } else if (ToBase->IsEven()) {
+                    // Shrink Blossoms
+                    // Not sure if this is wrong or the augment method is wrong
+                    Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
+                }
+            }
+            // Safely kills walkers and allows for next iteration to begin
+            foundPath=true;
+            f.reinit();
+            f.clear();
+        }
+    }
+}
 
 template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
@@ -696,6 +848,39 @@ void Matcher::create_threads_concurrentqueue_one_atomic(std::vector<std::thread>
                                 std::ref(activeThreads),
                                 std::ref(finished),
                                 std::ref(read_messages),
+                                i);
+
+    // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
+    // only CPU i as set.
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(i, &cpuset);
+    int rc = pthread_setaffinity_np(threads[i-1].native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    }
+  }
+}
+
+
+
+template <typename IT, typename VT>
+void Matcher::create_threads_concurrentqueue_baseline(std::vector<std::thread> &threads, 
+                                    unsigned num_threads,
+                                    std::vector<size_t> & read_messages,
+                                    Graph<IT, VT>& graph, 
+                                    moodycamel::ConcurrentQueue<IT> &q,
+                                    volatile bool &foundPath,
+                                    volatile bool &finished){
+
+  for (unsigned i = 1; i < num_threads+1; ++i) {
+    threads[i-1] = std::thread(&Matcher::search_persistent_baseline<IT,VT>,
+                                std::ref(graph), 
+                                std::ref(q),
+                                std::ref(read_messages),
+                                std::ref(foundPath),
+                                std::ref(finished),
                                 i);
 
     // Create a cpu_set_t object representing a set of CPUs. Clear it and mark

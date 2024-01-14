@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
     //Matcher::match_parallel_bench<int64_t, std::string>(G);
     //Matcher::match<int64_t, std::string>(G);
     //Matcher::match_parallel<int64_t, std::string>(G);
-    Matcher::match_parallel_one_atomic<int64_t, std::string>(G);
+    Matcher::match_parallel_baseline<int64_t, std::string>(G);
 
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<seconds>(match_end - match_start);
@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     }
     std::cout << "Maximum matching is valid." << '\n';
     // Writing data to file
-    stats.write_file(argv[1]);
+    //stats.write_file(argv[1]);
 
     return 0;
 }
