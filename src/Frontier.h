@@ -19,11 +19,13 @@ public:
     Stack<IT> tree;
     Stack<IT> path;
     DisjointSetUnion<IT> dsu;
+    private:
+    unsigned int nextPowerOfTwo(unsigned int n);
 };
 
 // Constructor
 template <typename IT, template <typename> class StackType>
-Frontier<IT, StackType>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), stack(M){
+Frontier<IT, StackType>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), stack(nextPowerOfTwo(M)){
     dsu.reset(N);
 }
 
@@ -49,6 +51,24 @@ void Frontier<IT, StackType>::clear(){
     stack.clear();
     tree.clear();
     path.clear();
+}
+
+
+
+template <typename IT, template <typename> class StackType>
+unsigned int Frontier<IT, StackType>::nextPowerOfTwo(unsigned int n) {
+    // If n is already a power of two, return n
+    if (n && !(n & (n - 1))) {
+        return n;
+    }
+
+    // Find the highest set bit (MSB) and left-shift by 1
+    unsigned int p = 1;
+    while (p < n) {
+        p <<= 1;
+    }
+
+    return p;
 }
 
 #endif // FRONTIER_H

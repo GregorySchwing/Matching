@@ -71,8 +71,8 @@ void Matcher::match(Graph<IT, VT>& graph) {
 template <typename IT, typename VT>
 void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     auto allocate_start = high_resolution_clock::now();
-    Frontier<IT> f(graph.getN(),graph.getM());
-    //Frontier<IT,WorkStealingQueue> f(graph.getN(),graph.getM());
+    //Frontier<IT> f(graph.getN(),graph.getM());
+    Frontier<IT,WorkStealingQueue> f(graph.getN(),graph.getM());
     auto allocate_end = high_resolution_clock::now();
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
@@ -87,7 +87,7 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
             auto search_end = high_resolution_clock::now();
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
-                augment(graph,TailOfAugmentingPath,f);
+                //augment(graph,TailOfAugmentingPath,f);
                 stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.tree.size(),duration_cast<microseconds>(search_end - search_start));
                 f.reinit();
                 f.clear();
@@ -124,6 +124,8 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     StackPusher<IT,VT,StackType>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack);
     while(!stack.empty()){
         stackEdge = stack.pop_back();
+        if (stackEdge < 0)
+            continue;
         //stack.pop_back();
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
