@@ -307,6 +307,7 @@ void Matcher::match_parallel_one_atomic(Graph<IT, VT>& graph) {
 
 template <typename IT, typename VT>
 void Matcher::match_parallel_baseline(Graph<IT, VT>& graph) {
+
     moodycamel::ConcurrentQueue<IT> q;
     volatile bool finished = false;
     volatile bool foundPath = false;
@@ -314,6 +315,8 @@ void Matcher::match_parallel_baseline(Graph<IT, VT>& graph) {
     std::vector<std::thread> threads(num_threads);
     std::vector<size_t> read_messages;
     read_messages.resize(num_threads);
+    auto match_start = high_resolution_clock::now();
+    // Access the graph elements as needed
     create_threads_concurrentqueue_baseline(threads, num_threads,read_messages,graph,q,foundPath,finished);
 
     IT written_messages = 0;
@@ -323,15 +326,9 @@ void Matcher::match_parallel_baseline(Graph<IT, VT>& graph) {
     if (sched_setaffinity(0, sizeof(cpu_set_t), &my_set)) {
         std::cout << "sched_setaffinity error: " << strerror(errno) << std::endl;
     }
-    auto match_start = high_resolution_clock::now();
-    // Access the graph elements as needed
-    for (std::size_t i = 0; i < graph.getN(); ++i) {
-        if (graph.matching[i] < 0) {
-            q.enqueue(i);
-            while(q.size_approx()){}
-        }
-    }
-    while(!foundPath){}
+
+
+    while(!finished){}
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(match_end - match_start);
 
@@ -507,13 +504,9 @@ void Matcher::search_persistent_baseline(Graph<IT, VT>& graph,
     Stack<IT> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
-
-    while (!finished) {
-        IT V_index;
-        if(!q.try_dequeue(V_index))
-            continue;
-        else{
-            read_messages[tid-1]++;
+    for (std::size_t V_index = 0; V_index < graph.getN(); ++V_index) {
+        if (graph.matching[V_index] < 0) {
+            //read_messages[tid-1]++;
             IT time = 0;
             //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
             nextVertex = &vertexVector[V_index];
@@ -549,12 +542,9 @@ void Matcher::search_persistent_baseline(Graph<IT, VT>& graph,
                     //graph.SetMatchField(ToBaseVertexID,stackEdge);
                     // I'll let the augment path method recover the path.
                     // Safely kills other/this walker and allows for next iteration to begin
-                    foundPath=true;
                     augment(graph,ToBase,f);
                     f.reinit();
-                    // clearing stack ensures this walker exits loop
-                    f.clear();
-
+                    break;
                 } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
                     ToBase->TreeField=stackEdge;
                     ToBase->AgeField=time++;
@@ -575,11 +565,10 @@ void Matcher::search_persistent_baseline(Graph<IT, VT>& graph,
                 }
             }
             // Safely kills walkers and allows for next iteration to begin
-            foundPath=true;
-            f.reinit();
             f.clear();
         }
     }
+    finished = true;
 }
 
 template <typename IT, typename VT>
