@@ -17,8 +17,13 @@ public:
     // Copy constructor
     Stack(const Stack& other);
 
+    IT pop_back();
+
     // Method to push an element onto the stack
     void push_back(const IT& val);
+
+    // Method to push an element onto the stack
+    void push(const IT& val);
 
     // Method to pop an element from the stack
     IT back();
@@ -29,7 +34,7 @@ public:
     // Method to pop an element from the stack
     bool empty();
 
-    void pop_back();
+    void pop();
     // Method to clear the stack
     void clear();
 
@@ -79,6 +84,17 @@ void Stack<IT>::push_back(const IT& val) {
     }
 }
 
+
+// Method to push an element onto the stack
+template <typename IT>
+void Stack<IT>::push(const IT& val) {
+    if (top < capacity) {
+        data[top++] = val;
+    } else {
+        throw std::overflow_error("Stack overflow");
+    }
+}
+
 // Method to pop an element from the stack
 template <typename IT>
 IT Stack<IT>::back() {
@@ -96,13 +112,21 @@ bool Stack<IT>::empty() {
 
 // Method to pop an element from the stack
 template <typename IT>
-void Stack<IT>::pop_back() {
+void Stack<IT>::pop() {
     if (top > 0) {
         --top;
     } else {
         throw std::underflow_error("Stack underflow");
     }
 }
+
+template <typename IT>
+IT Stack<IT>::pop_back() {
+    IT val = back();
+    pop();
+    return val;
+}
+
 
 // Method to clear the stack
 template <typename IT>

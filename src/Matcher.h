@@ -11,6 +11,7 @@
 #include "Stack.h"
 #include "Frontier.h"
 #include "Statistics.h"
+#include "StackPusher.h"
 
 class Matcher {
 public:
@@ -20,10 +21,10 @@ public:
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
 
 private:
-    template <typename IT, typename VT>
+    template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType = Stack>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
                     const size_t V_index,
-                    Frontier<IT> & f);
+                    FrontierType<IT, StackType> & f);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -71,6 +72,7 @@ template <typename IT, typename VT>
 void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     auto allocate_start = high_resolution_clock::now();
     Frontier<IT> f(graph.getN(),graph.getM());
+    //Frontier<IT,WorkStealingQueue> f(graph.getN(),graph.getM());
     auto allocate_end = high_resolution_clock::now();
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
@@ -100,16 +102,16 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 }
 
 
-template <typename IT, typename VT>
+template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType = Stack>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
                     const size_t V_index,
-                    Frontier<IT> & f) {
+                    FrontierType<IT, StackType> & f) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
     int64_t FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
     IT time = 0;
-    Stack<IT> &stack = f.stack;
+    StackType<IT> &stack = f.stack;
     Stack<IT> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
@@ -118,10 +120,11 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     tree.push_back(V_index);
     nextVertex->AgeField=time++;
     // Push edges onto stack, breaking if that stackEdge is a solution.
-    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
+    //Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
+    StackPusher<IT,VT,StackType>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack);
     while(!stack.empty()){
-        stackEdge = stack.back();
-        stack.pop_back();
+        stackEdge = stack.pop_back();
+        //stack.pop_back();
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
         FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
@@ -158,7 +161,8 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
             nextVertex->AgeField=time++;
             tree.push_back(nextVertexIndex);
 
-            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+            //Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+            StackPusher<IT,VT,StackType>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms

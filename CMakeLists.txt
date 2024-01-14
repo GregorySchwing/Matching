@@ -13,10 +13,11 @@ endif()
 
 # include fast_matrix_market
 add_subdirectory(fast_matrix_market)
+add_subdirectory(work-stealing-queue)
 
 # simple example
 add_executable(matcher Main.cpp)
-target_include_directories(matcher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(matcher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src  ${CMAKE_CURRENT_SOURCE_DIR}/work-stealing-queue)
 # Enable OpenMP
 find_package(OpenMP REQUIRED)
 if(OpenMP_CXX_FOUND)

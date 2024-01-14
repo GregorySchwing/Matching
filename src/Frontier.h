@@ -4,9 +4,10 @@
 #include "Vertex.h"
 #include "Stack.h"
 #include "DSU.h"
+#include <wsq.hpp>
 
-template <typename IT>
-class Frontier  {
+template <typename IT, template <typename> class StackType = Stack>
+class Frontier {
 public:
     Frontier(size_t N, size_t M);
     void reinit();
@@ -14,21 +15,21 @@ public:
 
     // Other member functions...
     std::vector<Vertex<IT>> vertexVector;
-    Stack<IT> stack;
+    StackType<IT> stack;
     Stack<IT> tree;
     Stack<IT> path;
     DisjointSetUnion<IT> dsu;
 };
 
 // Constructor
-template <typename IT>
-Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), stack(M){
+template <typename IT, template <typename> class StackType>
+Frontier<IT, StackType>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), stack(M){
     dsu.reset(N);
 }
 
 // Constructor
-template <typename IT>
-void Frontier<IT>::reinit(){       
+template <typename IT, template <typename> class StackType>
+void Frontier<IT, StackType>::reinit(){       
     for (auto V : tree) {
         vertexVector[V].TreeField=-1;
         vertexVector[V].BridgeField=-1;
@@ -43,8 +44,8 @@ void Frontier<IT>::reinit(){
 
 
 // Constructor
-template <typename IT>
-void Frontier<IT>::clear(){       
+template <typename IT, template <typename> class StackType>
+void Frontier<IT, StackType>::clear(){       
     stack.clear();
     tree.clear();
     path.clear();
