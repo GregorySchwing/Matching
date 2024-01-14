@@ -33,7 +33,8 @@ int main(int argc, char **argv) {
     //Matcher::match_parallel_bench<int64_t, std::string>(G);
     //Matcher::match<int64_t, std::string>(G);
     //Matcher::match_parallel<int64_t, std::string>(G);
-    Matcher::match_parallel_baseline<int64_t, std::string>(G);
+    //Matcher::match_parallel_baseline<int64_t, std::string>(G);
+    Matcher::match_parallel_two_queues<int64_t, std::string>(G);
 
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<seconds>(match_end - match_start);
