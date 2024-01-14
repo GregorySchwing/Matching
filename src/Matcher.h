@@ -246,7 +246,7 @@ void Matcher::match_parallel_one_atomic(Graph<IT, VT>& graph) {
     std::vector<std::thread> threads(num_threads);
     std::vector<size_t> read_messages;
     read_messages.resize(num_threads);
-    create_threads_concurrentqueue_one_atomic(threads, num_threads,read_messages,graph,q,root,foundPath,activeThreads,finished);
+    //create_threads_concurrentqueue_one_atomic(threads, num_threads,read_messages,graph,q,root,foundPath,activeThreads,finished);
 
     IT written_messages = 0;
     cpu_set_t my_set;
@@ -264,7 +264,7 @@ void Matcher::match_parallel_one_atomic(Graph<IT, VT>& graph) {
             foundPath=false;
             written_messages+=edgeCount;
             q.enqueue_bulk(graph.indices.cbegin()+graph.indptr[i],edgeCount);
-            while(!foundPath || activeThreads.load()){}
+            //while(!foundPath || activeThreads.load()){}
             // Once a path has been found, ensure q is empty for next iteration.
             IT pop;
             while(q.try_dequeue(pop)){}
@@ -278,11 +278,13 @@ void Matcher::match_parallel_one_atomic(Graph<IT, VT>& graph) {
 
     finished=true;
 
+    /*
     print_results(BenchResult{num_threads, written_messages, read_messages, duration});
 
     for (auto& t : threads) {
         t.join();
     }
+    */
     return;
 }
 
