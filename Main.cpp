@@ -10,11 +10,17 @@ using namespace std::chrono;
 int main(int argc, char **argv) {
     if (argc < 2) {
         std::cout << "Usage:" << '\n';
-        std::cout << argv[0] << " <file>.mtx" << '\n';
+        std::cout << argv[0] << " <file>.mtx numthreads[integer]" << '\n';
         std::cout << '\n';
         return 0;
     } else {
         std::cout << "READING " <<argv[1] << '\n';
+    }
+
+    int nt = 1;
+    if (argc >= 2) {
+        nt = atoi(argv[2]);
+        std::cout << "USING " << nt << " THREADS\n";
     }
 
     std::filesystem::path in_path{argv[1]};
@@ -30,7 +36,7 @@ int main(int argc, char **argv) {
     std::cout << "Matching (|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     Statistics<int64_t> stats(G.getN());
     auto match_start = high_resolution_clock::now();
-    Matcher::match_parallel<int64_t, std::string>(G);
+    Matcher::match_parallel<int64_t, std::string>(G,nt);
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<seconds>(match_end - match_start);
     std::cout << "Maximum matching time: "<< duration.count() << " seconds" << '\n';

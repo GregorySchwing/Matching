@@ -16,7 +16,7 @@
 class Matcher {
 public:
     template <typename IT, typename VT>
-    static void match_parallel(Graph<IT, VT>& graph);
+    static void match_parallel(Graph<IT, VT>& graph, int nt);
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph);
     template <typename IT, typename VT>
@@ -110,7 +110,7 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 #include "ThreadFactory.h"
 
 template <typename IT, typename VT>
-void Matcher::match_parallel(Graph<IT, VT>& graph) {
+void Matcher::match_parallel(Graph<IT, VT>& graph, int nt) {
     bool finished = false;
     bool ready = false;
     bool processed = false;
@@ -124,7 +124,7 @@ void Matcher::match_parallel(Graph<IT, VT>& graph) {
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
     // 8 workers.
-    constexpr unsigned num_threads = 1;
+    unsigned num_threads = nt;
     std::vector<std::thread> workers(num_threads);
     std::vector<size_t> read_messages;
     read_messages.resize(num_threads);
