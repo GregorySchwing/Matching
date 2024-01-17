@@ -60,8 +60,9 @@ public:
                                                     bool &finished_algorithm,
                                                     std::mutex & mtx,
                                                     std::condition_variable & cv,
-                                                    std::atomic<IT> & num_enqueud,
-                                                    std::atomic<IT> & num_dequeud,
+                                                    std::atomic<IT> & num_enqueued,
+                                                    std::atomic<IT> & num_dequeued,
+                                                    std::atomic<IT> & num_running,
                                                     std::atomic<IT> & num_spinning,
                                                     std::vector<bool> &spinning,
                                                     std::vector<std::atomic<bool>> &atomicBoolVector);
@@ -81,8 +82,9 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
                                                     bool &finished_algorithm,
                                                     std::mutex & mtx,
                                                     std::condition_variable & cv,
-                                                    std::atomic<IT> & num_enqueud,
-                                                    std::atomic<IT> & num_dequeud,
+                                                    std::atomic<IT> & num_enqueued,
+                                                    std::atomic<IT> & num_dequeued,
+                                                    std::atomic<IT> & num_running,
                                                     std::atomic<IT> & num_spinning,
                                                     std::vector<bool> &spinning,
                                                     std::vector<std::atomic<bool>> &atomicBoolVector) {
@@ -92,7 +94,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
         //threads[i] = std::thread(&Matcher::hello_world, i);
         threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl2<IT,VT>(graph,worklist,
           finished_iteration,finished_algorithm,currentRoot,
-          mtx,cv,i,num_enqueud,num_dequeud,num_spinning,spinning,atomicBoolVector,num_threads); } );
+          mtx,cv,i,num_enqueued,num_dequeued,num_running,num_spinning,spinning,atomicBoolVector,num_threads); } );
 
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
         // only CPU i as set.

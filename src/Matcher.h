@@ -34,8 +34,9 @@ public:
                                     std::mutex & mtx,
                                     std::condition_variable & cv,
                                     int tid,
-                                    std::atomic<IT> & num_enqueud,
-                                    std::atomic<IT> & num_dequeud,
+                                    std::atomic<IT> & num_enqueued,
+                                    std::atomic<IT> & num_dequeued,
+                                    std::atomic<IT> & num_running,
                                     std::atomic<IT> & num_spinning,
                                     std::vector<bool> &spinning,
                                     std::vector<std::atomic<bool>> &atomicBoolVector,
@@ -49,7 +50,7 @@ private:
     template <typename IT, typename VT>
     static void next_iteration(Graph<IT, VT>& graph, 
                     IT &V_index,
-                    std::atomic<IT> & num_enqueud,
+                    std::atomic<IT> & num_enqueued,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     bool & finished_algorithm);
     template <typename IT, typename VT>
@@ -58,8 +59,9 @@ private:
                     Frontier<IT> & f,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     int tid,
-                    std::atomic<IT> & num_enqueud,
-                    std::atomic<IT> & num_dequeud,
+                    std::atomic<IT> & num_enqueued,
+                    std::atomic<IT> & num_dequeued,
+                    std::atomic<IT> & num_running,
                     std::atomic<IT> & num_spinning,
                     bool & finished_algorithm,
                     const int numThreads);
@@ -147,6 +149,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     std::condition_variable cv;
     std::atomic<IT> num_enqueued = 0;
     std::atomic<IT> num_dequeued = 0;
+    std::atomic<IT> num_running = 0;
     std::atomic<IT> num_spinning = 0;
     std::vector<bool> spinning;
     IT currentRoot = 0;
@@ -167,7 +170,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     // Access the graph elements as needed
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,
     currentRoot,finished_iteration,finished_algorithm,
-    mtx,cv,num_enqueued,num_dequeued,num_spinning,spinning,atomicBoolVector);
+    mtx,cv,num_enqueued,num_dequeued,num_running,num_spinning,spinning,atomicBoolVector);
 
     auto match_start = high_resolution_clock::now();
     for (; currentRoot < graph.getN(); ++currentRoot) {
@@ -240,8 +243,9 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                                 std::mutex & mtx,
                                 std::condition_variable & cv,
                                 int tid,
-                                std::atomic<IT> & num_enqueud,
-                                std::atomic<IT> & num_dequeud,
+                                std::atomic<IT> & num_enqueued,
+                                std::atomic<IT> & num_dequeued,
+                                std::atomic<IT> & num_running,
                                 std::atomic<IT> & num_spinning,
                                 std::vector<bool> &spinning,
                                 std::vector<std::atomic<bool>> &atomicBoolVector,
@@ -254,26 +258,32 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     //for (std::size_t i = 0; i < graph.getN(); ++i) {
+    num_running++;
     while(!finished_algorithm){
         if (worklist.try_dequeue(currentRoot)){
             // This is how you prevent race conditions.
             // by decrementing number of spinning before incrementing
-            // num_dequeud.
+            // num_dequeued.
             // At all-spin state, there should be parity between 
             // num en/dequeue and NT-1 threads spinning.
             if (atomicBoolVector[tid]) {
                 atomicBoolVector[tid].store(false);
                 num_spinning--;
             }
-            num_dequeud++;
+            num_dequeued++;
             // Turn on flag
             search_persistent(graph,currentRoot,f,worklist,tid,
-            num_enqueud,num_dequeud,num_spinning,finished_algorithm,numThreads);
+            num_enqueued,num_dequeued,num_running,num_spinning,finished_algorithm,numThreads);
         } else {
             // Avoid lots of atomic ops when possible.
             if (!atomicBoolVector[tid]) {
                 atomicBoolVector[tid].store(true);
                 num_spinning++;
+            }
+            if (num_dequeued.load()==num_enqueued.load() &&
+                num_spinning.load()==num_running.load() &&
+                tid == 0){
+                next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
             }
             continue;
         }
@@ -286,13 +296,13 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 void Matcher::next_iteration(Graph<IT, VT>& graph, 
                     IT &currentRoot,
-                    std::atomic<IT> & num_enqueud,
+                    std::atomic<IT> & num_enqueued,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     bool & finished_algorithm){
     while(++currentRoot < graph.getN()){
         if (graph.matching[currentRoot] < 0) {
             //printf("Enqueuing %d\n",i);
-            num_enqueud++;
+            num_enqueued++;
             worklist.enqueue(currentRoot);
             break;
         }
@@ -308,8 +318,9 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
                     Frontier<IT> & f,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     int tid,
-                    std::atomic<IT> & num_enqueud,
-                    std::atomic<IT> & num_dequeud,
+                    std::atomic<IT> & num_enqueued,
+                    std::atomic<IT> & num_dequeued,
+                    std::atomic<IT> & num_running,
                     std::atomic<IT> & num_spinning,
                     bool & finished_algorithm,
                     const int numThreads) {
@@ -356,7 +367,7 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
             //graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
             augment(graph,ToBase,f);
-            next_iteration(graph,V_index,num_enqueud,worklist,finished_algorithm);
+            next_iteration(graph,V_index,num_enqueued,worklist,finished_algorithm);
             f.reinit();
             f.clear();
             return;
@@ -378,12 +389,6 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
             // Not sure if this is wrong or the augment method is wrong
             Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
         }
-    }
-    if (num_dequeud.load()==num_enqueud.load()&&
-    num_spinning.load()==numThreads-1){
-        next_iteration(graph,V_index,num_enqueud,worklist,finished_algorithm);
-    } else {
-        next_iteration(graph,V_index,num_enqueud,worklist,finished_algorithm);
     }
     f.clear();
     return;
