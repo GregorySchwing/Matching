@@ -70,6 +70,17 @@ public:
                                                     bool &finished,
                                                     std::mutex & mtx,
                                                     std::condition_variable & cv);
+    template <typename IT, typename VT>
+    static bool create_threads_concurrentqueue_cc(std::vector<std::thread> &threads,
+                                                    unsigned num_threads,
+                                                    std::vector<size_t> &read_messages,
+                                                    moodycamel::ConcurrentQueue<IT> &worklist,
+                                                    Graph<IT, VT> &graph,
+                                                    bool &ready,
+                                                    bool &processed,
+                                                    bool &finished,
+                                                    std::mutex & mtx,
+                                                    std::condition_variable & cv);
 };
 
 template <typename IT, typename VT>
@@ -120,6 +131,38 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
     for (unsigned i = 0; i < num_threads; ++i) {
         //threads[i] = std::thread(&Matcher::hello_world, i);
         threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl<IT,VT>(graph,ready,processed,finished,mtx,cv); } );
+
+        // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
+        // only CPU i as set.
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(i, &cpuset);
+        int rc = pthread_setaffinity_np(threads[i].native_handle(),
+                                        sizeof(cpu_set_t), &cpuset);
+        if (rc != 0) {
+            std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+        }
+    }
+  return true;
+}
+
+
+template <typename IT, typename VT>
+bool ThreadFactory::create_threads_concurrentqueue_cc(std::vector<std::thread> &threads,
+                                                    unsigned num_threads,
+                                                    std::vector<size_t> &read_messages,
+                                                    moodycamel::ConcurrentQueue<IT> &worklist,
+                                                    Graph<IT, VT> &graph,
+                                                    bool &ready,
+                                                    bool &processed,
+                                                    bool &finished,
+                                                    std::mutex & mtx,
+                                                    std::condition_variable & cv) {
+    // Works, infers template types from args
+    //Matcher::search(graph,0,*(frontiers[0]));
+    for (unsigned i = 0; i < num_threads; ++i) {
+        //threads[i] = std::thread(&Matcher::hello_world, i);
+        threads[i] = std::thread( [&,i]{ Matcher::match_persistent_cc<IT,VT>(graph,worklist,ready,processed,finished,mtx,cv); } );
 
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
         // only CPU i as set.

@@ -20,6 +20,8 @@ public:
     template <typename IT, typename VT>
     static void match_wl(Graph<IT, VT>& graph, int nt);
     template <typename IT, typename VT>
+    static void match_cc(Graph<IT, VT>& graph, int nt);
+    template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph);
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
@@ -31,6 +33,14 @@ public:
                                 std::condition_variable & cv);
     template <typename IT, typename VT>
     static void match_persistent_wl(Graph<IT, VT>& graph,
+                                bool &ready,
+                                bool &processed,
+                                bool &finished,
+                                std::mutex & mtx,
+                                std::condition_variable & cv);
+    template <typename IT, typename VT>
+    static void match_persistent_cc(Graph<IT, VT>& graph,
+                                moodycamel::ConcurrentQueue<IT> &worklist,
                                 bool &ready,
                                 bool &processed,
                                 bool &finished,
@@ -218,6 +228,47 @@ void Matcher::match_wl(Graph<IT, VT>& graph, int nt) {
 
 
 template <typename IT, typename VT>
+void Matcher::match_cc(Graph<IT, VT>& graph, int nt) {
+    bool finished = false;
+    bool ready = false;
+    bool processed = false;
+    bool foundPath = false;
+
+    // This will take the place of foundPath/finished on a vertex
+    std::mutex mtx;
+    std::condition_variable cv;
+    // Multi-producer; Multi-consumer queue, aka worklist
+    // Start off by using it as a dynamic allocator of work.
+    size_t capacity = 1;
+    moodycamel::ConcurrentQueue<IT> worklist{capacity};
+    // 8 workers.
+    unsigned num_threads = nt;
+    std::vector<std::thread> workers(num_threads);
+    std::vector<size_t> read_messages;
+    read_messages.resize(num_threads);
+    auto match_start = high_resolution_clock::now();
+    // Access the graph elements as needed
+    ThreadFactory::create_threads_concurrentqueue_cc<IT,VT>(workers, num_threads,read_messages,worklist,graph,ready,processed,finished,mtx,cv);
+    //std::cout << "Back in master thread, data = " << i << std::endl;
+    auto match_end = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(match_end - match_start);
+    // Wait for the worker.
+    {
+        std::unique_lock lk(mtx);
+        cv.wait(lk, [&] { return finished; });
+    }
+    //print_results(BenchResult{num_threads, written_messages, read_messages, duration});
+    //mtx.lock();
+    for (auto& t : workers) {
+        t.join();
+    }
+    
+    return;
+}
+
+
+
+template <typename IT, typename VT>
 void Matcher::match_persistent(Graph<IT, VT>& graph,
                                 bool &ready,
                                 bool &processed,
@@ -330,6 +381,57 @@ void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
     }
 }
 
+
+template <typename IT, typename VT>
+void Matcher::match_persistent_cc(Graph<IT, VT>& graph,
+                                moodycamel::ConcurrentQueue<IT> &worklist,
+                                bool &ready,
+                                bool &processed,
+                                bool &finished,
+                                std::mutex & mtx,
+                                std::condition_variable & cv) {
+    auto allocate_start = high_resolution_clock::now();
+    //Frontier<IT> f(graph.getN(),graph.getM());
+    Frontier<IT> f(graph.getN(),graph.getM());
+    auto allocate_end = high_resolution_clock::now();
+    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+    std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+    Vertex<IT> * TailOfAugmentingPath;
+    // Access the graph elements as needed
+    if(mtx.try_lock() && !finished){
+        // master thread
+        std::thread::id threadId = std::this_thread::get_id();
+        std::cout << "Worker thread start" << threadId <<std::endl;
+        for (std::size_t i = 0; i < graph.getN(); ++i) {
+            if (graph.matching[i] < 0) {
+                //printf("SEARCHING FROM %ld!\n",i);
+                // Your matching logic goes here...
+                TailOfAugmentingPath=search(graph,i,f);
+                // If not a nullptr, I found an AP.
+                if (TailOfAugmentingPath){
+                    augment(graph,TailOfAugmentingPath,f);
+                    f.reinit();
+                    f.clear();
+                    //printf("FOUND AP!\n");
+                } else {
+                    f.clear();
+                    //printf("DIDNT FOUND AP!\n");
+                }
+            }
+        }
+        // Send data back to master thread
+        finished = true;
+        ready = true;
+        //std::cout << "Worker thread signals data processing completed" << std::endl;
+        // Manual unlocking is done before notifying, to avoid waking up
+        // the waiting thread only to block again (see notify_one for details)
+        mtx.unlock();
+        // The worker thread has done the work,
+        // Notify the master thread to continue the work.
+        cv.notify_all();
+    } else {
+    }
+}
 
 
 template <typename IT, typename VT>
