@@ -55,10 +55,13 @@ public:
                                                     std::vector<size_t> &read_messages,
                                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                                     Graph<IT, VT> &graph,
+                                                    IT & currentRoot,
                                                     bool &finished_iteration,
                                                     bool &finished_algorithm,
                                                     std::mutex & mtx,
-                                                    std::condition_variable & cv);
+                                                    std::condition_variable & cv,
+                                                    std::atomic<int> & num_spinning,
+                                                    std::vector<bool> & spinning);
 
 };
 
@@ -70,15 +73,20 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
                                                     std::vector<size_t> &read_messages,
                                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                                     Graph<IT, VT> &graph,
+                                                    IT & currentRoot,
                                                     bool &finished_iteration,
                                                     bool &finished_algorithm,
                                                     std::mutex & mtx,
-                                                    std::condition_variable & cv) {
+                                                    std::condition_variable & cv,
+                                                    std::atomic<int> & num_spinning,
+                                                    std::vector<bool> & spinning) {
     // Works, infers template types from args
     //Matcher::search(graph,0,*(frontiers[0]));
     for (unsigned i = 0; i < num_threads; ++i) {
         //threads[i] = std::thread(&Matcher::hello_world, i);
-        threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl2<IT,VT>(graph,worklist,finished_iteration,finished_algorithm,mtx,cv); } );
+        threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl2<IT,VT>(graph,worklist,
+          finished_iteration,finished_algorithm,currentRoot,
+          mtx,cv,i,num_spinning,spinning,num_threads); } );
 
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
         // only CPU i as set.

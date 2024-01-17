@@ -30,8 +30,14 @@ public:
                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                     bool &finished_iteration,
                                     bool &finished_algorithm,
+                                    IT &i,
                                     std::mutex & mtx,
-                                    std::condition_variable & cv);
+                                    std::condition_variable & cv,
+                                    int tid,
+                                    std::atomic<int> & numSpinning,
+                                    std::vector<bool> & spinning,
+                                    const int numThreads);
+
 private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
@@ -123,6 +129,9 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
     std::mutex mtx;
     std::condition_variable cv;
+    std::atomic<int> num_spinning = 0;
+    std::vector<bool> spinning;
+    IT currentRoot = 0;
     // 8 workers.
     bool finished_iteration = false;
     bool finished_algorithm = false;
@@ -130,13 +139,16 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     std::vector<std::thread> workers(num_threads);
     std::vector<size_t> read_messages;
     read_messages.resize(num_threads);
+    spinning.resize(num_threads,false);
     // Access the graph elements as needed
-    ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,finished_iteration,finished_algorithm,mtx,cv);
+    ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,
+    currentRoot,finished_iteration,finished_algorithm,
+    mtx,cv,num_spinning,spinning);
 
     auto match_start = high_resolution_clock::now();
-    for (std::size_t i = 0; i < graph.getN(); ++i) {
-        if (graph.matching[i] < 0) {
-            worklist.enqueue(i);
+    for (; currentRoot < graph.getN(); ++currentRoot) {
+        if (graph.matching[currentRoot] < 0) {
+            worklist.enqueue(currentRoot);
         }
         // Rest of pushes are done by the persistent threads.
         break;
@@ -193,8 +205,13 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
                                 bool &finished_iteration,
                                 bool &finished_algorithm,
+                                IT &currentRoot,
                                 std::mutex & mtx,
-                                std::condition_variable & cv) {
+                                std::condition_variable & cv,
+                                int tid,
+                                std::atomic<int> & numSpinning,
+                                std::vector<bool> & spinning,
+                                const int numThreads) {
     auto allocate_start = high_resolution_clock::now();
     Frontier<IT> f(graph.getN(),graph.getM());
     auto allocate_end = high_resolution_clock::now();
@@ -203,19 +220,21 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     //for (std::size_t i = 0; i < graph.getN(); ++i) {
-    IT i;
     while(!finished_algorithm){
-        if (worklist.try_dequeue(i)){
-            search_persistent(graph,i,f);
-            while(++i < graph.getN()){
-                if (graph.matching[i] < 0) {
+        if (worklist.try_dequeue(currentRoot)){
+            // Turn on flag
+            search_persistent(graph,currentRoot,f);
+            while(++currentRoot < graph.getN()){
+                if (graph.matching[currentRoot] < 0) {
                     //printf("Enqueuing %d\n",i);
-                    worklist.enqueue(i);
+                    worklist.enqueue(currentRoot);
                     break;
                 }
                 // Rest of pushes are done by the persistent threads.
             }
-            finished_algorithm = (i==graph.getN());
+            // Turn off flag
+
+            finished_algorithm = (currentRoot==graph.getN());
         } else {
             continue;
         }
@@ -224,7 +243,6 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     // Notify the master thread to continue the work.
     cv.notify_one();
 }
-
 
 template <typename IT, typename VT>
 void Matcher::search_persistent(Graph<IT, VT>& graph, 
