@@ -1,7 +1,7 @@
 // Copyright (C) 2023 Adam Lugowski. All rights reserved.
 // Use of this source code is governed by the BSD 2-clause license found in the LICENSE.txt file.
 // SPDX-License-Identifier: BSD-2-Clause
-
+#include "FileReader.h"
 #include "Graph.h"
 #include "Matcher.h"
 #include <chrono>
@@ -18,13 +18,14 @@ int main(int argc, char **argv) {
     }
 
     std::filesystem::path in_path{argv[1]};
-    Graph<int64_t, std::string>  G(in_path);
-
+    FileReader<int64_t, std::string>  FR(in_path);
+    //Graph<int64_t, std::string>  G(in_path);
     // A map is used for the frontier to limit copying N vertices.
     //std::unordered_map<int64_t, Vertex<int64_t>> vertexMap;
     // A vector is used for the frontier to allocate once all the memory ever needed.
     auto allocate_start = high_resolution_clock::now();
-    G.matching.resize(G.getN(),-1);
+    Graph<int64_t, std::string>  G(FR.indptr,FR.indices,FR.original_rows,
+    FR.original_cols,FR.original_vals,FR.N,FR.M);
     auto allocate_end = high_resolution_clock::now();
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Matching (|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';

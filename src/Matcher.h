@@ -174,7 +174,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 
     auto match_start = high_resolution_clock::now();
     for (; currentRoot < graph.getN(); ++currentRoot) {
-        if (graph.matching[currentRoot] < 0) {
+        if (!graph.IsMatched(currentRoot)) {
             // This prevents race-conditions at end.
             num_enqueued++;
             worklist.enqueue(currentRoot);
@@ -300,7 +300,7 @@ void Matcher::next_iteration(Graph<IT, VT>& graph,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     bool & finished_algorithm){
     while(++currentRoot < graph.getN()){
-        if (graph.matching[currentRoot] < 0) {
+        if (!graph.IsMatched(currentRoot)) {
             //printf("Enqueuing %d\n",i);
             num_enqueued++;
             worklist.enqueue(currentRoot);
@@ -367,9 +367,9 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
             //graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
             augment(graph,ToBase,f);
-            next_iteration(graph,V_index,num_enqueued,worklist,finished_algorithm);
             f.reinit();
             f.clear();
+            next_iteration(graph,V_index,num_enqueued,worklist,finished_algorithm);
             return;
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
