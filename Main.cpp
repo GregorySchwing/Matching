@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     std::cout << "Matching (|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     Statistics<int64_t> stats(G.getN());
     auto match_start = high_resolution_clock::now();
-    Matcher::match<int64_t, std::string>(G,stats);
+    Matcher::match_parallel<int64_t, std::string>(G);
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<seconds>(match_end - match_start);
     std::cout << "Maximum matching time: "<< duration.count() << " seconds" << '\n';
@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
     }
     std::cout << "Maximum matching is valid." << '\n';
     // Writing data to file
-    stats.write_file(argv[1]);
+    //stats.write_file(argv[1]);
 
     return 0;
 }
