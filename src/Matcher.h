@@ -11,6 +11,7 @@
 #include "Stack.h"
 #include "Frontier.h"
 #include "Statistics.h"
+#include "concurrentqueue.h"
 
 class Matcher {
 public:
@@ -18,7 +19,12 @@ public:
     static void match(Graph<IT, VT>& graph);
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
-
+    template <typename IT, typename VT>
+    static void match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats);
+    template <typename IT, typename VT>
+    static void match_persistent_wl(Graph<IT, VT> &graph,
+                                    moodycamel::ConcurrentQueue<IT> &worklist,
+                                    bool &finished);
 private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
@@ -99,6 +105,62 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     }
 }
 
+#include "ThreadFactory.h"
+template <typename IT, typename VT>
+void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
+    size_t capacity = 1;
+    moodycamel::ConcurrentQueue<IT> worklist{capacity};
+    // 8 workers.
+    bool finished = false;
+    unsigned num_threads = 1;
+    std::vector<std::thread> workers(num_threads);
+    std::vector<size_t> read_messages;
+    read_messages.resize(num_threads);
+    auto match_start = high_resolution_clock::now();
+    // Access the graph elements as needed
+    ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,finished);
+    //std::cout << "Back in master thread, data = " << i << std::endl;
+    auto match_end = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(match_end - match_start);
+    for (auto& t : workers) {
+        t.join();
+    }
+}
+
+
+template <typename IT, typename VT>
+void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
+                                moodycamel::ConcurrentQueue<IT> &worklist,
+                                bool &finished) {
+    auto allocate_start = high_resolution_clock::now();
+    Frontier<IT> f(graph.getN(),graph.getM());
+    auto allocate_end = high_resolution_clock::now();
+    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+    std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+    Vertex<IT> * TailOfAugmentingPath;
+    // Access the graph elements as needed
+    for (std::size_t i = 0; i < graph.getN(); ++i) {
+        if (graph.matching[i] < 0) {
+            //printf("SEARCHING FROM %ld!\n",i);
+            // Your matching logic goes here...
+            auto search_start = high_resolution_clock::now();
+            TailOfAugmentingPath=search(graph,i,f);
+            auto search_end = high_resolution_clock::now();
+            // If not a nullptr, I found an AP.
+            if (TailOfAugmentingPath){
+                augment(graph,TailOfAugmentingPath,f);
+                //stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.tree.size(),duration_cast<microseconds>(search_end - search_start));
+                f.reinit();
+                f.clear();
+                //printf("FOUND AP!\n");
+            } else {
+                //stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.tree.size(),duration_cast<microseconds>(search_end - search_start));
+                f.clear();
+                //printf("DIDNT FOUND AP!\n");
+            }
+        }
+    }
+}
 
 template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
