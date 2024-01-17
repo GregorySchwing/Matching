@@ -63,7 +63,8 @@ public:
                                                     std::atomic<IT> & num_enqueud,
                                                     std::atomic<IT> & num_dequeud,
                                                     std::atomic<IT> & num_spinning,
-                                                    std::vector<bool> &spinning);
+                                                    std::vector<bool> &spinning,
+                                                    std::vector<std::atomic<bool>> &atomicBoolVector);
 
 };
 
@@ -83,14 +84,15 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
                                                     std::atomic<IT> & num_enqueud,
                                                     std::atomic<IT> & num_dequeud,
                                                     std::atomic<IT> & num_spinning,
-                                                    std::vector<bool> &spinning) {
+                                                    std::vector<bool> &spinning,
+                                                    std::vector<std::atomic<bool>> &atomicBoolVector) {
     // Works, infers template types from args
     //Matcher::search(graph,0,*(frontiers[0]));
     for (unsigned i = 0; i < num_threads; ++i) {
         //threads[i] = std::thread(&Matcher::hello_world, i);
         threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl2<IT,VT>(graph,worklist,
           finished_iteration,finished_algorithm,currentRoot,
-          mtx,cv,i,num_enqueud,num_dequeud,num_spinning,spinning,num_threads); } );
+          mtx,cv,i,num_enqueud,num_dequeud,num_spinning,spinning,atomicBoolVector,num_threads); } );
 
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
         // only CPU i as set.

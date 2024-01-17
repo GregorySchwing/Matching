@@ -38,6 +38,7 @@ public:
                                     std::atomic<IT> & num_dequeud,
                                     std::atomic<IT> & num_spinning,
                                     std::vector<bool> &spinning,
+                                    std::vector<std::atomic<bool>> &atomicBoolVector,
                                     const int numThreads);
 
 private:
@@ -153,14 +154,20 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     bool finished_iteration = false;
     bool finished_algorithm = false;
     unsigned num_threads = 8;
+    std::vector<std::atomic<bool>> atomicBoolVector(num_threads);
     std::vector<std::thread> workers(num_threads);
     std::vector<size_t> read_messages;
+    // Assign all elements in the vector to false
+    for (auto& atomicBool : atomicBoolVector) {
+        atomicBool.store(false);
+    }
+
     read_messages.resize(num_threads);
     spinning.resize(num_threads,false);
     // Access the graph elements as needed
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,
     currentRoot,finished_iteration,finished_algorithm,
-    mtx,cv,num_enqueued,num_dequeued,num_spinning,spinning);
+    mtx,cv,num_enqueued,num_dequeued,num_spinning,spinning,atomicBoolVector);
 
     auto match_start = high_resolution_clock::now();
     for (; currentRoot < graph.getN(); ++currentRoot) {
@@ -237,6 +244,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                                 std::atomic<IT> & num_dequeud,
                                 std::atomic<IT> & num_spinning,
                                 std::vector<bool> &spinning,
+                                std::vector<std::atomic<bool>> &atomicBoolVector,
                                 const int numThreads) {
     auto allocate_start = high_resolution_clock::now();
     Frontier<IT> f(graph.getN(),graph.getM());
@@ -253,8 +261,8 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             // num_dequeud.
             // At all-spin state, there should be parity between 
             // num en/dequeue and NT-1 threads spinning.
-            if (spinning[tid]) {
-                spinning[tid]=false;
+            if (atomicBoolVector[tid]) {
+                atomicBoolVector[tid].store(false);
                 num_spinning--;
             }
             num_dequeud++;
@@ -263,8 +271,8 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             num_enqueud,num_dequeud,num_spinning,finished_algorithm,numThreads);
         } else {
             // Avoid lots of atomic ops when possible.
-            if (!spinning[tid]){
-                spinning[tid]=true;
+            if (!atomicBoolVector[tid]) {
+                atomicBoolVector[tid].store(true);
                 num_spinning++;
             }
             continue;
