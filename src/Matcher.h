@@ -25,9 +25,20 @@ public:
     static void match_persistent_wl(Graph<IT, VT> &graph,
                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                     bool &finished);
+    template <typename IT, typename VT>
+    static void match_persistent_wl2(Graph<IT, VT> &graph,
+                                    moodycamel::ConcurrentQueue<IT> &worklist,
+                                    bool &finished_iteration,
+                                    bool &finished_algorithm,
+                                    std::mutex & mtx,
+                                    std::condition_variable & cv);
 private:
     template <typename IT, typename VT>
     static Vertex<IT> * search(Graph<IT, VT>& graph, 
+                    const size_t V_index,
+                    Frontier<IT> & f);
+    template <typename IT, typename VT>
+    static void search_persistent(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f);
     template <typename IT, typename VT>
@@ -110,16 +121,31 @@ template <typename IT, typename VT>
 void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
+    std::mutex mtx;
+    std::condition_variable cv;
     // 8 workers.
-    bool finished = false;
-    unsigned num_threads = 1;
+    bool finished_iteration = false;
+    bool finished_algorithm = false;
+    unsigned num_threads = 8;
     std::vector<std::thread> workers(num_threads);
     std::vector<size_t> read_messages;
     read_messages.resize(num_threads);
-    auto match_start = high_resolution_clock::now();
     // Access the graph elements as needed
-    ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,finished);
-    //std::cout << "Back in master thread, data = " << i << std::endl;
+    ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,finished_iteration,finished_algorithm,mtx,cv);
+
+    auto match_start = high_resolution_clock::now();
+    for (std::size_t i = 0; i < graph.getN(); ++i) {
+        if (graph.matching[i] < 0) {
+            worklist.enqueue(i);
+        }
+        // Rest of pushes are done by the persistent threads.
+        break;
+    }
+    // Wait for the worker.
+    {
+        std::unique_lock lk(mtx);
+        cv.wait(lk, [&] { return finished_algorithm; });
+    }
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(match_end - match_start);
     for (auto& t : workers) {
@@ -160,6 +186,117 @@ void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
             }
         }
     }
+}
+
+template <typename IT, typename VT>
+void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
+                                moodycamel::ConcurrentQueue<IT> &worklist,
+                                bool &finished_iteration,
+                                bool &finished_algorithm,
+                                std::mutex & mtx,
+                                std::condition_variable & cv) {
+    auto allocate_start = high_resolution_clock::now();
+    Frontier<IT> f(graph.getN(),graph.getM());
+    auto allocate_end = high_resolution_clock::now();
+    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+    std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+    Vertex<IT> * TailOfAugmentingPath;
+    // Access the graph elements as needed
+    //for (std::size_t i = 0; i < graph.getN(); ++i) {
+    IT i;
+    while(!finished_algorithm){
+        if (worklist.try_dequeue(i)){
+            search_persistent(graph,i,f);
+            while(++i < graph.getN()){
+                if (graph.matching[i] < 0) {
+                    //printf("Enqueuing %d\n",i);
+                    worklist.enqueue(i);
+                    break;
+                }
+                // Rest of pushes are done by the persistent threads.
+            }
+            finished_algorithm = (i==graph.getN());
+        } else {
+            continue;
+        }
+    }
+    // The worker thread has done the work,
+    // Notify the master thread to continue the work.
+    cv.notify_one();
+}
+
+
+template <typename IT, typename VT>
+void Matcher::search_persistent(Graph<IT, VT>& graph, 
+                    const size_t V_index,
+                    Frontier<IT> & f) {
+    Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
+    int64_t FromBaseVertexID,ToBaseVertexID;
+    IT stackEdge, matchedEdge;
+    IT nextVertexIndex;
+    IT time = 0;
+    Stack<IT> &stack = f.stack;
+    Stack<IT> &tree = f.tree;
+    DisjointSetUnion<IT> &dsu = f.dsu;
+    std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
+    //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
+    nextVertex = &vertexVector[V_index];
+    tree.push_back(V_index);
+    nextVertex->AgeField=time++;
+    // Push edges onto stack, breaking if that stackEdge is a solution.
+    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
+    while(!stack.empty()){
+        stackEdge = stack.back();
+        stack.pop_back();
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
+        FromBase = &vertexVector[FromBaseVertexID];
+
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        ToBaseVertexID = dsu[Graph<IT,VT>::EdgeTo(graph,stackEdge)];
+        ToBase = &vertexVector[ToBaseVertexID];
+
+        // Edge is between two vertices in the same blossom, continue.
+        if (FromBase == ToBase)
+            continue;
+        if(!FromBase->IsEven()){
+            std::swap(FromBase,ToBase);
+            std::swap(FromBaseVertexID,ToBaseVertexID);
+        }
+        // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
+        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(ToBaseVertexID);
+            //graph.SetMatchField(ToBaseVertexID,stackEdge);
+            // I'll let the augment path method recover the path.
+            augment(graph,ToBase,f);
+            f.reinit();
+            f.clear();
+            return;
+        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(ToBaseVertexID);
+
+            matchedEdge=graph.GetMatchField(ToBaseVertexID);
+            nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+            nextVertex = &vertexVector[nextVertexIndex];
+            nextVertex->AgeField=time++;
+            tree.push_back(nextVertexIndex);
+
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+
+        } else if (ToBase->IsEven()) {
+            // Shrink Blossoms
+            // Not sure if this is wrong or the augment method is wrong
+            Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
+        }
+    }
+    f.clear();
+    return;
 }
 
 template <typename IT, typename VT>
