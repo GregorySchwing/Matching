@@ -177,6 +177,11 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
         std::unique_lock lk(mtx);
         cv.wait(lk, [&] { return finished_algorithm; });
     }
+
+    std::cout << "NUM ENQUEUED " << num_enqueued.load() << std::endl;
+    std::cout << "NUM DEQUEUED " << num_dequeued.load() << std::endl;
+    std::cout << "NUM SPINNING " << num_spinning.load() << std::endl;
+
     auto match_end = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(match_end - match_start);
     for (auto& t : workers) {
@@ -366,7 +371,12 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
             Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
         }
     }
-    next_iteration(graph,V_index,num_enqueud,worklist,finished_algorithm);
+    if (num_dequeud.load()==num_enqueud.load()&&
+    num_spinning.load()==numThreads-1){
+        next_iteration(graph,V_index,num_enqueud,worklist,finished_algorithm);
+    } else {
+        next_iteration(graph,V_index,num_enqueud,worklist,finished_algorithm);
+    }
     f.clear();
     return;
 }
