@@ -44,6 +44,11 @@ private:
                     const size_t V_index,
                     Frontier<IT> & f);
     template <typename IT, typename VT>
+    static void next_iteration(Graph<IT, VT>& graph, 
+                    IT &V_index,
+                    moodycamel::ConcurrentQueue<IT> &worklist,
+                    bool & finished_algorithm);
+    template <typename IT, typename VT>
     static void search_persistent(Graph<IT, VT>& graph, 
                     IT &V_index,
                     Frontier<IT> & f,
@@ -51,6 +56,7 @@ private:
                     int tid,
                     std::atomic<int> & numSpinning,
                     std::vector<bool> & spinning,
+                    bool & finished_algorithm,
                     const int numThreads);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
@@ -233,18 +239,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             }
             // Turn on flag
             search_persistent(graph,currentRoot,f,worklist,tid,
-            numSpinning,spinning,numThreads);
-            while(++currentRoot < graph.getN()){
-                if (graph.matching[currentRoot] < 0) {
-                    //printf("Enqueuing %d\n",i);
-                    worklist.enqueue(currentRoot);
-                    break;
-                }
-                // Rest of pushes are done by the persistent threads.
-            }
-            // Turn off flag
-
-            finished_algorithm = (currentRoot==graph.getN());
+            numSpinning,spinning,finished_algorithm,numThreads);
         } else {
             // Avoid lots of atomic ops when possible.
             if (!spinning[tid]){
@@ -260,6 +255,23 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
 }
 
 template <typename IT, typename VT>
+void Matcher::next_iteration(Graph<IT, VT>& graph, 
+                    IT &currentRoot,
+                    moodycamel::ConcurrentQueue<IT> &worklist,
+                    bool & finished_algorithm){
+    while(++currentRoot < graph.getN()){
+        if (graph.matching[currentRoot] < 0) {
+            //printf("Enqueuing %d\n",i);
+            worklist.enqueue(currentRoot);
+            break;
+        }
+        // Rest of pushes are done by the persistent threads.
+    }
+    // Turn off flag
+    finished_algorithm = (currentRoot==graph.getN());
+}
+
+template <typename IT, typename VT>
 void Matcher::search_persistent(Graph<IT, VT>& graph, 
                     IT &V_index,
                     Frontier<IT> & f,
@@ -267,6 +279,7 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
                     int tid,
                     std::atomic<int> & numSpinning,
                     std::vector<bool> & spinning,
+                    bool & finished_algorithm,
                     const int numThreads) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
     int64_t FromBaseVertexID,ToBaseVertexID;
@@ -311,6 +324,7 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
             //graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
             augment(graph,ToBase,f);
+            next_iteration(graph,V_index,worklist,finished_algorithm);
             f.reinit();
             f.clear();
             return;
@@ -333,6 +347,7 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
             Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
         }
     }
+    next_iteration(graph,V_index,worklist,finished_algorithm);
     f.clear();
     return;
 }
