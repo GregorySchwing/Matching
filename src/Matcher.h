@@ -185,6 +185,14 @@ void Matcher::match_persistent(Graph<IT, VT>& graph,
     // Access the graph elements as needed
     std::unique_lock lk(mtx);
     cv.wait(lk, [&] { return ready; });
+    // Quick return for test case.
+    if (processed){
+        lk.unlock();
+        // The worker thread has done the work,
+        // Notify the master thread to continue the work.
+        cv.notify_one();
+        return;
+    }
     std::thread::id threadId = std::this_thread::get_id();
     std::cout << "Worker thread start" << threadId <<std::endl;
     for (std::size_t i = 0; i < graph.getN(); ++i) {
@@ -207,7 +215,6 @@ void Matcher::match_persistent(Graph<IT, VT>& graph,
     // Send data back to master thread
     processed = true;
     //std::cout << "Worker thread signals data processing completed" << std::endl;
-
     // Manual unlocking is done before notifying, to avoid waking up
     // the waiting thread only to block again (see notify_one for details)
     lk.unlock();
