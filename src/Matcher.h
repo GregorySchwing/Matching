@@ -45,8 +45,13 @@ private:
                     Frontier<IT> & f);
     template <typename IT, typename VT>
     static void search_persistent(Graph<IT, VT>& graph, 
-                    const size_t V_index,
-                    Frontier<IT> & f);
+                    IT &V_index,
+                    Frontier<IT> & f,
+                    moodycamel::ConcurrentQueue<IT> &worklist,
+                    int tid,
+                    std::atomic<int> & numSpinning,
+                    std::vector<bool> & spinning,
+                    const int numThreads);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -222,8 +227,13 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     //for (std::size_t i = 0; i < graph.getN(); ++i) {
     while(!finished_algorithm){
         if (worklist.try_dequeue(currentRoot)){
+            if (spinning[tid]){
+                spinning[tid]=false;
+                numSpinning--;
+            }
             // Turn on flag
-            search_persistent(graph,currentRoot,f);
+            search_persistent(graph,currentRoot,f,worklist,tid,
+            numSpinning,spinning,numThreads);
             while(++currentRoot < graph.getN()){
                 if (graph.matching[currentRoot] < 0) {
                     //printf("Enqueuing %d\n",i);
@@ -236,6 +246,11 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
 
             finished_algorithm = (currentRoot==graph.getN());
         } else {
+            // Avoid lots of atomic ops when possible.
+            if (!spinning[tid]){
+                spinning[tid]=true;
+                numSpinning++;
+            }
             continue;
         }
     }
@@ -246,8 +261,13 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
 
 template <typename IT, typename VT>
 void Matcher::search_persistent(Graph<IT, VT>& graph, 
-                    const size_t V_index,
-                    Frontier<IT> & f) {
+                    IT &V_index,
+                    Frontier<IT> & f,
+                    moodycamel::ConcurrentQueue<IT> &worklist,
+                    int tid,
+                    std::atomic<int> & numSpinning,
+                    std::vector<bool> & spinning,
+                    const int numThreads) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
     int64_t FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
