@@ -91,7 +91,7 @@ void Matcher::match(Graph<IT, VT>& graph) {
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
-        if (graph.matching[i] < 0) {
+        if (!graph.IsMatched(i)) {
             //printf("SEARCHING FROM %ld!\n",i);
             // Your matching logic goes here...
             TailOfAugmentingPath=search(graph,i,f);
@@ -120,7 +120,7 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
-        if (graph.matching[i] < 0) {
+        if (!graph.IsMatched(i)) {
             //printf("SEARCHING FROM %ld!\n",i);
             // Your matching logic goes here...
             auto search_start = high_resolution_clock::now();
@@ -214,7 +214,7 @@ void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
-        if (graph.matching[i] < 0) {
+        if (!graph.IsMatched(i)) {
             //printf("SEARCHING FROM %ld!\n",i);
             // Your matching logic goes here...
             auto search_start = high_resolution_clock::now();
@@ -404,6 +404,7 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
             Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
         }
     }
+    f.reinit();
     f.clear();
     return;
 }
