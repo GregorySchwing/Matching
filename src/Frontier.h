@@ -23,7 +23,9 @@ public:
 // Constructor
 template <typename IT>
 Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), stack(M){
+    // for backwards compatability...
     dsu.reset(N);
+    std::iota(vertexVector.begin(), vertexVector.end(), 0);
 }
 
 // Constructor
