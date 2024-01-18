@@ -32,7 +32,8 @@ Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), s
 // Constructor
 template <typename IT>
 void Frontier<IT>::reinit(){ 
-    DisjointSetUnionHelper<IT>::reset(10,vertexVector);      
+    //DisjointSetUnionHelper<IT>::reset(10,vertexVector);     
+    //DisjointSetUnionHelper<IT>::find(10,vertexVector);       
     for (auto V : tree) {
         vertexVector[V].TreeField=-1;
         vertexVector[V].BridgeField=-1;
