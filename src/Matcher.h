@@ -30,9 +30,10 @@ public:
     template <typename IT, typename VT>
     static void match_persistent_wl2(Graph<IT, VT> &graph,
                                     moodycamel::ConcurrentQueue<IT> &worklist,
+                                    std::vector<size_t> &read_messages,
                                     bool &finished_iteration,
                                     bool &finished_algorithm,
-                                    IT &i,
+                                    std::atomic<IT> & currentRoot,
                                     std::mutex & mtx,
                                     std::condition_variable & cv,
                                     int tid,
@@ -51,13 +52,13 @@ private:
                     Frontier<IT> & f);
     template <typename IT, typename VT>
     static void next_iteration(Graph<IT, VT>& graph, 
-                    IT &V_index,
+                    std::atomic<IT> & currentRoot,
                     std::atomic<IT> & num_enqueued,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     bool & finished_algorithm);
     template <typename IT, typename VT>
     static void search_persistent(Graph<IT, VT>& graph, 
-                    IT &V_index,
+                    std::atomic<IT> & V_index,
                     Frontier<IT> & f,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     int tid,
@@ -145,6 +146,10 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 #include "ThreadFactory.h"
 template <typename IT, typename VT>
 void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
+    for (unsigned num_threads = 1; num_threads < 16; num_threads*=2){
+    for (auto& atomicBool : graph.matching) {
+        atomicBool.store(-1);
+    }
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
     std::mutex mtx;
@@ -154,11 +159,14 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     std::atomic<IT> num_running = 0;
     std::atomic<IT> num_spinning = 0;
     std::vector<bool> spinning;
-    IT currentRoot = 0;
+    std::atomic<IT> currentRoot = 0;
     // 8 workers.
+    //std::atomic<bool> finished_iteration = 0;
+    //std::atomic<bool> finished_algorithm = 0;
+    
     bool finished_iteration = false;
     bool finished_algorithm = false;
-    unsigned num_threads = 8;
+    //unsigned num_threads = 1;
     std::vector<std::atomic<bool>> atomicBoolVector(num_threads);
     std::vector<std::thread> workers(num_threads);
     std::vector<size_t> read_messages;
@@ -198,6 +206,14 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     auto duration = duration_cast<milliseconds>(match_end - match_start);
     for (auto& t : workers) {
         t.join();
+    }
+    size_t tot_read_messages = 0;
+    int ni = 0;
+    for (size_t n : read_messages){
+        printf("reader: \t\t %d read_messages %zu \n", ni++,n);
+        tot_read_messages += n;
+    }
+    printf("Total read_messages %zu \n", tot_read_messages);
     }
 }
 
@@ -239,9 +255,10 @@ void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
+                                std::vector<size_t> &read_messages,
                                 bool &finished_iteration,
                                 bool &finished_algorithm,
-                                IT &currentRoot,
+                                std::atomic<IT> & currentRoot,
                                 std::mutex & mtx,
                                 std::condition_variable & cv,
                                 int tid,
@@ -263,6 +280,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     num_running++;
     while(!finished_algorithm){
         if (worklist.try_dequeue(currentRoot)){
+            read_messages[tid]++;
             // This is how you prevent race conditions.
             // by decrementing number of spinning before incrementing
             // num_dequeued.
@@ -297,7 +315,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
 
 template <typename IT, typename VT>
 void Matcher::next_iteration(Graph<IT, VT>& graph, 
-                    IT &currentRoot,
+                    std::atomic<IT> & currentRoot,
                     std::atomic<IT> & num_enqueued,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     bool & finished_algorithm){
@@ -316,7 +334,7 @@ void Matcher::next_iteration(Graph<IT, VT>& graph,
 
 template <typename IT, typename VT>
 void Matcher::search_persistent(Graph<IT, VT>& graph, 
-                    IT &V_index,
+                    std::atomic<IT> & V_index,
                     Frontier<IT> & f,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     int tid,
