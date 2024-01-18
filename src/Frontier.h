@@ -25,7 +25,9 @@ public:
 template <typename IT>
 Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), stack(M){
     // for backwards compatability...
+    #ifndef NDEBUG
     dsu.reset(N);
+    #endif
     std::iota(vertexVector.begin(), vertexVector.end(), 0);
 }
 
@@ -43,11 +45,12 @@ void Frontier<IT>::reinit(){
         vertexVector[V].DirectParentField=-1;
         vertexVector[V].GroupRootField=V;
         vertexVector[V].SizeField=1;
-        // Deprecate this
+        #ifndef NDEBUG
         dsu.link[V]=V;
         dsu.directParent[V]=-1;
         dsu.groupRoot[V]=V;
         dsu.size[V]=1;
+        #endif
     }
 
 }

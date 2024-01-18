@@ -61,16 +61,24 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
     // W = EdgeTo(E);
     EdgeToVertexID = Graph<IT,VT>::EdgeTo(graph,nextEdge);
     // B = Base(X);
+    #ifndef NDEBUG
     FromBaseID = dsu[EdgeFromVertexID];
     auto FromBaseIDTest = DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector);  
     assert(FromBaseID==FromBaseIDTest);
+    #else
+    FromBaseID = DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector);  
+    #endif
 
     FromBase = &vertexVector[FromBaseID];
 
     // A = Base(Y);
+    #ifndef NDEBUG
     ToBaseID = dsu[EdgeToVertexID];
     auto ToBaseIDTest = DisjointSetUnionHelper<IT>::getBase(EdgeToVertexID,vertexVector);  
     assert(ToBaseID==ToBaseIDTest);
+    #else
+    ToBaseID = DisjointSetUnionHelper<IT>::getBase(EdgeToVertexID,vertexVector);  
+    #endif
 
     ToBase = &vertexVector[ToBaseID];
 
@@ -78,7 +86,6 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
     // if (Age(A) > Age(B))
     if(ToBase->AgeField > FromBase->AgeField){
         std::swap(FromBaseID,ToBaseID);
-        std::swap(FromBaseIDTest,ToBaseIDTest);
         std::swap(EdgeFromVertexID,EdgeToVertexID);
     }
 
@@ -116,27 +123,44 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
 
         // Little unsure of this logic.
         // Y = Blossom(W);
+        #ifndef NDEBUG
         ToBaseID = dsu[EdgeToVertexID];
         ToBaseIDTest = DisjointSetUnionHelper<IT>::getBase(EdgeToVertexID,vertexVector);  
         assert(ToBaseID==ToBaseIDTest);
+        #else
+        ToBaseID = DisjointSetUnionHelper<IT>::getBase(EdgeToVertexID,vertexVector);  
+        #endif
+
 
         // X = SetUnion(Y, X);
+        #ifndef NDEBUG
         dsu.linkTo(FromBaseID,ToBaseID);
-        DisjointSetUnionHelper<IT>::linkTo(FromBaseIDTest,ToBaseIDTest,vertexVector);  
-
+        DisjointSetUnionHelper<IT>::linkTo(FromBaseID,ToBaseID,vertexVector);  
+        #else
+        DisjointSetUnionHelper<IT>::linkTo(FromBaseID,ToBaseID,vertexVector);  
+        #endif
         // E = T;
         nextEdge = treeEdge;
         // V = Other(E, W);
         EdgeFromVertexID = Graph<IT,VT>::Other(graph,nextEdge,ToBaseID);
         // Y = Blossom(V);
         // X = SetUnion(Y, X);
+        #ifndef NDEBUG
         dsu.linkTo(ToBaseID,dsu[EdgeFromVertexID]);
-        DisjointSetUnionHelper<IT>::linkTo(ToBaseIDTest,DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector),vertexVector);  
+        DisjointSetUnionHelper<IT>::linkTo(ToBaseID,DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector),vertexVector);  
+        #else
+        DisjointSetUnionHelper<IT>::linkTo(ToBaseID,DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector),vertexVector);  
+        #endif
 
         // B = Base(X);
+
+        #ifndef NDEBUG
         FromBaseID=dsu[EdgeFromVertexID];
         FromBaseIDTest = DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector);
-        assert(FromBaseID==FromBaseIDTest);
+        assert(FromBaseID==FromBaseIDTest); 
+        #else
+        FromBaseID = DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector);
+        #endif
     }
 }
 
