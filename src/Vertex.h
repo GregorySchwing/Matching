@@ -1,5 +1,6 @@
 #ifndef VERTEX_H
 #define VERTEX_H
+#include <iostream>
 #include "Enums.h"
 // Define the Vertex class template
 template <typename IT>

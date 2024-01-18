@@ -4,6 +4,7 @@
 #include <deque>
 #include <Vertex.h>
 #include <Stack.h>
+#include <State.h>
 
 template <typename T>
 void BM_Push(benchmark::State& state) {
@@ -18,6 +19,7 @@ BENCHMARK_TEMPLATE(BM_Push, std::vector<int>);
 BENCHMARK_TEMPLATE(BM_Push, std::deque<int>);
 BENCHMARK_TEMPLATE(BM_Push, std::vector<Vertex<int>>);
 BENCHMARK_TEMPLATE(BM_Push, std::deque<Vertex<int>>);
+BENCHMARK_TEMPLATE(BM_Push, std::vector<State<int>>);
 
 template <typename T>
 void BM_Pop(benchmark::State& state) {
@@ -36,5 +38,6 @@ BENCHMARK_TEMPLATE(BM_Pop, std::vector<int>);
 BENCHMARK_TEMPLATE(BM_Pop, std::deque<int>);
 BENCHMARK_TEMPLATE(BM_Pop, std::vector<Vertex<int>>);
 BENCHMARK_TEMPLATE(BM_Pop, std::deque<Vertex<int>>);
+BENCHMARK_TEMPLATE(BM_Pop, std::vector<State<int>>);
 
 BENCHMARK_MAIN();
