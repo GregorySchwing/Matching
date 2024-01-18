@@ -344,14 +344,26 @@ void Matcher::search_persistent(Graph<IT, VT>& graph,
     while(!stack.empty()){
         stackEdge = stack.back();
         stack.pop_back();
-        // Necessary because vertices dont know their own index.
-        // It simplifies vector creation..
+
+
+        #ifndef NDEBUG
         FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
+        auto FromBaseVertexIDTest = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeFrom(graph,stackEdge),vertexVector);  
+        assert(FromBaseVertexID==FromBaseVertexIDTest);
+        #else
+        FromBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeFrom(graph,stackEdge),vertexVector);  
+        #endif
         FromBase = &vertexVector[FromBaseVertexID];
 
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
+        #ifndef NDEBUG
         ToBaseVertexID = dsu[Graph<IT,VT>::EdgeTo(graph,stackEdge)];
+        auto ToBaseVertexIDTest = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeTo(graph,stackEdge),vertexVector);  
+        assert(ToBaseVertexID==ToBaseVertexIDTest);
+        #else
+        ToBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeTo(graph,stackEdge),vertexVector);  
+        #endif
         ToBase = &vertexVector[ToBaseVertexID];
 
         // Edge is between two vertices in the same blossom, continue.
