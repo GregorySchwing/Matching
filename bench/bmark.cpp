@@ -2,9 +2,9 @@
 #include <concurrentqueue.h>
 #include <vector>
 #include <deque>
+#include <list>
 #include <Vertex.h>
-#include <Stack.h>
-#include <State.h>
+
 
 template <typename T>
 void BM_Push(benchmark::State& state) {
@@ -19,7 +19,8 @@ BENCHMARK_TEMPLATE(BM_Push, std::vector<int>);
 BENCHMARK_TEMPLATE(BM_Push, std::deque<int>);
 BENCHMARK_TEMPLATE(BM_Push, std::vector<Vertex<int>>);
 BENCHMARK_TEMPLATE(BM_Push, std::deque<Vertex<int>>);
-BENCHMARK_TEMPLATE(BM_Push, std::vector<State<int>>);
+BENCHMARK_TEMPLATE(BM_Push, std::list<Vertex<int>>);
+//BENCHMARK_TEMPLATE(BM_Push, std::unordered_set<Vertex<int>>);
 
 template <typename T>
 void BM_Pop(benchmark::State& state) {
@@ -38,6 +39,7 @@ BENCHMARK_TEMPLATE(BM_Pop, std::vector<int>);
 BENCHMARK_TEMPLATE(BM_Pop, std::deque<int>);
 BENCHMARK_TEMPLATE(BM_Pop, std::vector<Vertex<int>>);
 BENCHMARK_TEMPLATE(BM_Pop, std::deque<Vertex<int>>);
-BENCHMARK_TEMPLATE(BM_Pop, std::vector<State<int>>);
+BENCHMARK_TEMPLATE(BM_Pop, std::list<Vertex<int>>);
+//BENCHMARK_TEMPLATE(BM_Pop, std::unordered_set<Vertex<int>>);
 
 BENCHMARK_MAIN();
