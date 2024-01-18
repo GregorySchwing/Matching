@@ -37,7 +37,7 @@ IT DisjointSetUnionHelper<IT>::operator[](const IT& a) {
 
 template<typename IT>
 IT DisjointSetUnionHelper<IT>::getBase(const IT& a, std::vector<Vertex<IT>> & vv) {
-    return vv[find(a)].GroupRootField;
+    return vv[find(a,vv)].GroupRootField;
 }
 
 /*

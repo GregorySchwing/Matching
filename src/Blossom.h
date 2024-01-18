@@ -3,6 +3,7 @@
 
 #include "Vertex.h"
 #include "Stack.h"
+#include "DSU2.h"
 
 class Blossom {
     public:
@@ -61,16 +62,23 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
     EdgeToVertexID = Graph<IT,VT>::EdgeTo(graph,nextEdge);
     // B = Base(X);
     FromBaseID = dsu[EdgeFromVertexID];
+    auto FromBaseIDTest = DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector);  
+    assert(FromBaseID==FromBaseIDTest);
+
     FromBase = &vertexVector[FromBaseID];
 
     // A = Base(Y);
     ToBaseID = dsu[EdgeToVertexID];
+    auto ToBaseIDTest = DisjointSetUnionHelper<IT>::getBase(EdgeToVertexID,vertexVector);  
+    assert(ToBaseID==ToBaseIDTest);
+
     ToBase = &vertexVector[ToBaseID];
 
 
     // if (Age(A) > Age(B))
     if(ToBase->AgeField > FromBase->AgeField){
         std::swap(FromBaseID,ToBaseID);
+        std::swap(FromBaseIDTest,ToBaseIDTest);
         std::swap(EdgeFromVertexID,EdgeToVertexID);
     }
 
@@ -109,8 +117,13 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
         // Little unsure of this logic.
         // Y = Blossom(W);
         ToBaseID = dsu[EdgeToVertexID];
+        ToBaseIDTest = DisjointSetUnionHelper<IT>::getBase(EdgeToVertexID,vertexVector);  
+        assert(ToBaseID==ToBaseIDTest);
+
         // X = SetUnion(Y, X);
         dsu.linkTo(FromBaseID,ToBaseID);
+        DisjointSetUnionHelper<IT>::linkTo(FromBaseIDTest,ToBaseIDTest,vertexVector);  
+
         // E = T;
         nextEdge = treeEdge;
         // V = Other(E, W);
@@ -118,8 +131,12 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
         // Y = Blossom(V);
         // X = SetUnion(Y, X);
         dsu.linkTo(ToBaseID,dsu[EdgeFromVertexID]);
+        DisjointSetUnionHelper<IT>::linkTo(ToBaseIDTest,DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector),vertexVector);  
+
         // B = Base(X);
         FromBaseID=dsu[EdgeFromVertexID];
+        FromBaseIDTest = DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector);
+        assert(FromBaseID==FromBaseIDTest);
     }
 }
 

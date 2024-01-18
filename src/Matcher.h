@@ -421,11 +421,17 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
         FromBaseVertexID = dsu[Graph<IT,VT>::EdgeFrom(graph,stackEdge)];
+        auto FromBaseVertexIDTest = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeFrom(graph,stackEdge),vertexVector);  
+        assert(FromBaseVertexID==FromBaseVertexIDTest);
+
         FromBase = &vertexVector[FromBaseVertexID];
 
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
         ToBaseVertexID = dsu[Graph<IT,VT>::EdgeTo(graph,stackEdge)];
+        auto ToBaseVertexIDTest = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeTo(graph,stackEdge),vertexVector);  
+        assert(ToBaseVertexID==ToBaseVertexIDTest);
+        
         ToBase = &vertexVector[ToBaseVertexID];
 
         // Edge is between two vertices in the same blossom, continue.
@@ -490,7 +496,10 @@ void Matcher::augment(Graph<IT, VT>& graph,
         nextVertex = &vertexVector[nextVertexID];
 
         //B = Base(Blossom(W));
-        auto nextVertexBaseID = dsu[nextVertexID];  
+        // GJS
+        auto nextVertexBaseID = dsu[nextVertexID];
+        auto nextVertexBaseIDTest = DisjointSetUnionHelper<IT>::getBase(nextVertexID,vertexVector);  
+        assert(nextVertexBaseIDTest==nextVertexBaseID);
         nextVertexBase = &vertexVector[nextVertexBaseID];
         
         // Path(W, B, P);
