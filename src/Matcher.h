@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include "Enums.h"
 #include "DSU.h"
+#include "DSU2.h"
+
 #include "Blossom.h"
 #include "Stack.h"
 #include "Frontier.h"

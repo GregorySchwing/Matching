@@ -4,6 +4,7 @@
 #include "Vertex.h"
 #include "Stack.h"
 #include "DSU.h"
+#include "DSU2.h"
 
 template <typename IT>
 class Frontier  {
@@ -30,7 +31,8 @@ Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), s
 
 // Constructor
 template <typename IT>
-void Frontier<IT>::reinit(){       
+void Frontier<IT>::reinit(){ 
+    DisjointSetUnionHelper<IT>::reset(10,vertexVector);      
     for (auto V : tree) {
         vertexVector[V].TreeField=-1;
         vertexVector[V].BridgeField=-1;
@@ -41,6 +43,7 @@ void Frontier<IT>::reinit(){
         dsu.groupRoot[V]=V;
         dsu.size[V]=1;
     }
+
 }
 
 
