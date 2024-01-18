@@ -23,12 +23,9 @@ public:
           BridgeField(-1), 
           ShoreField(-1), 
           AgeField(-1), 
-          // Wrong val
           LabelField(Label),
-          // Wrong val
           LinkField(Label),
           SizeField(1), 
-          // Wrong val
           GroupRootField(Label),
           DirectParentField(-1) {}
 
@@ -38,8 +35,7 @@ public:
           BridgeField(other.BridgeField),
           ShoreField(other.ShoreField), 
           AgeField(other.AgeField),
-          // Wrong val
-          LabelField(-1),
+          LabelField(other.LabelField),
           LinkField(other.LinkField),
           SizeField(other.SizeField), 
           GroupRootField(other.GroupRootField), 
@@ -51,12 +47,9 @@ public:
           BridgeField(-1), 
           ShoreField(-1), 
           AgeField(-1),
-          // Wrong val
           LabelField(-1),
-          // Wrong val
           LinkField(-1),
           SizeField(1), 
-          // Wrong val
           GroupRootField(-1),
           DirectParentField(-1) {}
     

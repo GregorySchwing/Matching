@@ -39,6 +39,11 @@ void Frontier<IT>::reinit(){
         vertexVector[V].BridgeField=-1;
         vertexVector[V].ShoreField=-1;
         vertexVector[V].AgeField=-1;
+        vertexVector[V].LinkField=V;
+        vertexVector[V].DirectParentField=-1;
+        vertexVector[V].GroupRootField=V;
+        vertexVector[V].SizeField=1;
+        // Deprecate this
         dsu.link[V]=V;
         dsu.directParent[V]=-1;
         dsu.groupRoot[V]=V;
