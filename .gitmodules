@@ -4,3 +4,6 @@
 [submodule "concurrentqueue"]
 	path = concurrentqueue
 	url = https://github.com/GregorySchwing/concurrentqueue.git
+[submodule "cxxopts"]
+	path = cxxopts
+	url = https://github.com/GregorySchwing/cxxopts.git

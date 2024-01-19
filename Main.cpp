@@ -9,17 +9,26 @@
 #include <chrono>
 using namespace std::chrono;
 #include <list>
+#include <cxxopts.hpp>
+
 int main(int argc, char **argv) {
-    if (argc < 2) {
-        std::cout << "Usage:" << '\n';
-        std::cout << argv[0] << " <file>.mtx" << '\n';
-        std::cout << '\n';
+    cxxopts::Options options("matcher", "A multi-threaded DFS-based Edmonds Blossom solver.");
+    options.add_options()
+        ("file", "Input file", cxxopts::value<std::string>())
+        ("iterations", "Number of iterations", cxxopts::value<int>()->default_value("1"))
+        ("threads", "Number of threads", cxxopts::value<int>()->default_value("1"));
+
+    options.parse_positional({"file", "iterations", "threads"});
+    auto result = options.parse(argc, argv);
+
+    if (!result.count("file")) {
+        std::cout << "Usage: " << argv[0] << " <file>.mtx <num_iterations> <num_threads>" << '\n';
         return 0;
     } else {
-        std::cout << "READING " <<argv[1] << '\n';
+        std::cout << "READING " << result["file"].as<std::string>() << '\n';
     }
 
-    std::filesystem::path in_path{argv[1]};
+    std::filesystem::path in_path{result["file"].as<std::string>()};
     FileReader<int64_t, std::string>  FR(in_path);
     //Graph<int64_t, std::string>  G(in_path);
     // A map is used for the frontier to limit copying N vertices.
@@ -32,7 +41,10 @@ int main(int argc, char **argv) {
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Matching (|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     // Assign all elements in the vector to false
-    int num_iters = 1;
+    // Read the number of iterations and number of threads from cxxopts results
+    int num_iters = result["iterations"].as<int>();
+    int num_threads = result["threads"].as<int>();
+
     for (int i = 0;i<num_iters;++i){
         Statistics<int64_t> stats(G.getN());
         for (auto& atomicBool : G.matching) {

@@ -17,7 +17,7 @@ add_subdirectory(fast_matrix_market)
 
 # simple example
 add_executable(matcher Main.cpp)
-target_include_directories(matcher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src  ${CMAKE_CURRENT_SOURCE_DIR}/concurrentqueue)
+target_include_directories(matcher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src  ${CMAKE_CURRENT_SOURCE_DIR}/concurrentqueue ${CMAKE_CURRENT_SOURCE_DIR}/cxxopts/include)
 # Enable OpenMP
 find_package(OpenMP REQUIRED)
 if(OpenMP_CXX_FOUND)
