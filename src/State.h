@@ -8,20 +8,26 @@ class State  {
 public:    
     State();
 
-    State(size_t N);
-
+    State(size_t N, size_t M);
+    void clear();
     // Other member functions...
-    std::vector<Vertex<IT>> vertexVector;
     std::vector<IT> stack;
-    std::vector<IT> tree;
+    std::vector<Vertex<IT>> tree;
+    IT time;
 };
 // Constructor
 template <typename IT>
-State<IT>::State(){
+State<IT>::State():time(0){
 }
 // Constructor
 template <typename IT>
-State<IT>::State(size_t N): vertexVector(N), tree(N), stack(N){
+State<IT>::State(size_t N, size_t M): tree(N),stack(M),time(0){
+}
+
+template <typename IT>
+void State<IT>::clear(){
+    stack.clear();
+    tree.clear();
 }
 
 #endif
