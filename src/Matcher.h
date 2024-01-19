@@ -330,8 +330,9 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     f.reinit();
     f.clear();
     nextVertex = &vertexVector[V_index];
-    tree.push_back(V_index);
     nextVertex->AgeField=time++;
+    tree.push_back(*nextVertex);
+
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     // Gracefully exit other searchers if an augmenting path is found.
@@ -370,19 +371,19 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
         if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
-            tree.push_back(ToBaseVertexID);
+            tree.push_back(*ToBase);
             // I'll let the augment path method recover the path.
             return ToBase;
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
-            tree.push_back(ToBaseVertexID);
+            tree.push_back(*ToBase);
 
             matchedEdge=graph.GetMatchField(ToBaseVertexID);
             nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
             nextVertex = &vertexVector[nextVertexIndex];
             nextVertex->AgeField=time++;
-            tree.push_back(nextVertexIndex);
+            tree.push_back(*nextVertex);
 
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
 
@@ -410,8 +411,9 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
     //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
     nextVertex = &vertexVector[V_index];
-    tree.push_back(V_index);
     nextVertex->AgeField=time++;
+    tree.push_back(*nextVertex);
+
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     while(!stack.empty()){
@@ -451,20 +453,20 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
         if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
-            tree.push_back(ToBaseVertexID);
+            tree.push_back(*ToBase);
             //graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
             return ToBase;
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
-            tree.push_back(ToBaseVertexID);
+            tree.push_back(*ToBase);
 
             matchedEdge=graph.GetMatchField(ToBaseVertexID);
             nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
             nextVertex = &vertexVector[nextVertexIndex];
             nextVertex->AgeField=time++;
-            tree.push_back(nextVertexIndex);
+            tree.push_back(*nextVertex);
 
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
 
