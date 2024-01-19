@@ -63,10 +63,7 @@ public:
                                                     std::condition_variable & cv,
                                                     std::atomic<IT> & num_enqueued,
                                                     std::atomic<IT> & num_dequeued,
-                                                    std::atomic<IT> & num_running,
-                                                    std::atomic<IT> & num_spinning,
-                                                    std::vector<bool> &spinning,
-                                                    std::vector<std::atomic<bool>> &atomicBoolVector);
+                                                    std::atomic<IT> & num_spinning);
 
 };
 
@@ -86,10 +83,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
                                                     std::condition_variable & cv,
                                                     std::atomic<IT> & num_enqueued,
                                                     std::atomic<IT> & num_dequeued,
-                                                    std::atomic<IT> & num_running,
-                                                    std::atomic<IT> & num_spinning,
-                                                    std::vector<bool> &spinning,
-                                                    std::vector<std::atomic<bool>> &atomicBoolVector) {
+                                                    std::atomic<IT> & num_spinning) {
     // Works, infers template types from args
     //Matcher::search(graph,0,*(frontiers[0]));
     for (unsigned i = 0; i < num_threads; ++i) {
@@ -97,7 +91,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
         threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl2<IT,VT>(graph,worklist,
           read_messages,finished_iteration,incremented_iteration,
           finished_algorithm,currentRoot,
-          mtx,cv,i,num_enqueued,num_dequeued,num_running,num_spinning,spinning,atomicBoolVector,num_threads); } );
+          mtx,cv,i,num_enqueued,num_dequeued,num_spinning); } );
 
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
         // only CPU i as set.
