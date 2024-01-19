@@ -32,6 +32,7 @@ public:
                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                     std::vector<size_t> &read_messages,
                                     std::atomic<bool>& finished_iteration,
+                                    std::atomic<bool>& incremented_iteration,
                                     bool &finished_algorithm,
                                     std::atomic<IT> & currentRoot,
                                     std::mutex & mtx,
@@ -157,7 +158,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     // 8 workers.
     //std::atomic<bool> finished_iteration = 0;
     //std::atomic<bool> finished_algorithm = 0;
-    
+    std::atomic<bool> incremented_iteration = false;
     std::atomic<bool> finished_iteration = false;
     bool finished_algorithm = false;
     unsigned num_threads = 8;
@@ -173,7 +174,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     spinning.resize(num_threads,false);
     // Access the graph elements as needed
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,
-    currentRoot,finished_iteration,finished_algorithm,
+    currentRoot,finished_iteration,incremented_iteration,finished_algorithm,
     mtx,cv,num_enqueued,num_dequeued,num_running,num_spinning,spinning,atomicBoolVector);
 
     auto match_start = high_resolution_clock::now();
@@ -252,6 +253,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& finished_iteration,
+                                std::atomic<bool>& incremented_iteration,
                                 bool &finished_algorithm,
                                 std::atomic<IT> & currentRoot,
                                 std::mutex & mtx,
@@ -303,10 +305,19 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             num_spinning++;
             
             // No augmenting paths were found
-            if (num_dequeued.load()==num_enqueued.load() &&
-                num_dequeued.load()==num_spinning.load()) {
-                finished_iteration.store(false);
-                next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
+            if (num_dequeued.load() == num_enqueued.load() &&
+                num_dequeued.load() == num_spinning.load()) {
+                bool expected = false;
+                if (incremented_iteration.compare_exchange_strong(expected, true)) {
+                    // Only one thread will enter this block
+
+                    // Your code here...
+                    finished_iteration.store(false);
+                    next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
+
+                    // Release the flag when done
+                    incremented_iteration.store(false);
+                }
             }
 
         } else {
