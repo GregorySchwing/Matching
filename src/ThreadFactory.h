@@ -56,9 +56,7 @@ public:
                                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                                     Graph<IT, VT> &graph,
                                                     std::atomic<IT> & currentRoot,
-                                                    std::atomic<bool>& finished_iteration,
-                                                    std::atomic<bool>& incremented_iteration,
-                                                    bool &finished_algorithm,
+                                                    std::atomic<bool>& found_augmenting_path,
                                                     std::mutex & mtx,
                                                     std::condition_variable & cv,
                                                     std::atomic<IT> & num_enqueued,
@@ -76,9 +74,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
                                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                                     Graph<IT, VT> &graph,
                                                     std::atomic<IT> & currentRoot,
-                                                    std::atomic<bool>& finished_iteration,
-                                                    std::atomic<bool>& incremented_iteration,
-                                                    bool &finished_algorithm,
+                                                    std::atomic<bool>& found_augmenting_path,
                                                     std::mutex & mtx,
                                                     std::condition_variable & cv,
                                                     std::atomic<IT> & num_enqueued,
@@ -89,8 +85,8 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
     for (unsigned i = 0; i < num_threads; ++i) {
         //threads[i] = std::thread(&Matcher::hello_world, i);
         threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl2<IT,VT>(graph,worklist,
-          read_messages,finished_iteration,incremented_iteration,
-          finished_algorithm,currentRoot,
+          read_messages,found_augmenting_path,
+          currentRoot,
           mtx,cv,i,num_enqueued,num_dequeued,num_spinning); } );
 
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark

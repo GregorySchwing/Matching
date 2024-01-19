@@ -33,9 +33,7 @@ public:
     static void match_persistent_wl2(Graph<IT, VT> &graph,
                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                     std::vector<size_t> &read_messages,
-                                    std::atomic<bool>& finished_iteration,
-                                    std::atomic<bool>& incremented_iteration,
-                                    bool &finished_algorithm,
+                                    std::atomic<bool>& found_augmenting_path,
                                     std::atomic<IT> & currentRoot,
                                     std::mutex & mtx,
                                     std::condition_variable & cv,
@@ -53,16 +51,14 @@ private:
     static void next_iteration(Graph<IT, VT>& graph, 
                     std::atomic<IT> & currentRoot,
                     std::atomic<IT> & num_enqueued,
-                    moodycamel::ConcurrentQueue<IT> &worklist,
-                    bool & finished_algorithm);
+                    moodycamel::ConcurrentQueue<IT> &worklist);
     template <typename IT, typename VT>
     static Vertex<IT> * search_persistent(Graph<IT, VT>& graph, 
                     IT & V_index,
                     Frontier<IT> & f,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     int tid,
-                    std::atomic<bool> & finished_iteration,
-                    bool & finished_algorithm);
+                    std::atomic<bool> & found_augmenting_path);
     template <typename IT, typename VT>
     static void augment(Graph<IT, VT>& graph, 
                     Vertex<IT> * TailOfAugmentingPath,
@@ -147,31 +143,20 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
     std::mutex mtx;
     std::condition_variable cv;
-    std::atomic<IT> num_enqueued = 0;
-    std::atomic<IT> num_dequeued = 0;
-    std::atomic<IT> num_spinning = 0;
-    std::atomic<IT> currentRoot = 0;
-
-    // 8 workers.
-    //std::atomic<bool> finished_iteration = 0;
-    //std::atomic<bool> finished_algorithm = 0;
-    std::atomic<bool> incremented_iteration = false;
-    std::atomic<bool> finished_iteration = false;
-    bool finished_algorithm = false;
+    std::atomic<IT> num_enqueued(0);
+    std::atomic<IT> num_dequeued(0);
+    std::atomic<IT> num_spinning(0);
+    std::atomic<IT> currentRoot(0);
+    std::atomic<bool> found_augmenting_path(false);
     
     //std::vector<std::atomic<bool>> atomicBoolVector(num_threads);
     std::vector<std::thread> workers(num_threads);
     std::vector<size_t> read_messages;
-    // Assign all elements in the vector to false
-    //for (auto& atomicBool : atomicBoolVector) {
-    //    atomicBool.store(false);
-    //}
-
     read_messages.resize(num_threads);
     //spinning.resize(num_threads,false);
     // Access the graph elements as needed
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,
-    currentRoot,finished_iteration,incremented_iteration,finished_algorithm,
+    currentRoot,found_augmenting_path,
     mtx,cv,num_enqueued,num_dequeued,num_spinning);
 
     auto match_start = high_resolution_clock::now();
@@ -249,9 +234,7 @@ template <typename IT, typename VT>
 void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
                                 std::vector<size_t> &read_messages,
-                                std::atomic<bool>& finished_iteration,
-                                std::atomic<bool>& incremented_iteration,
-                                bool &finished_algorithm,
+                                std::atomic<bool>& found_augmenting_path,
                                 std::atomic<IT> & currentRoot,
                                 std::mutex & mtx,
                                 std::condition_variable & cv,
@@ -268,13 +251,14 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     // Access the graph elements as needed
     //for (std::size_t i = 0; i < graph.getN(); ++i) {
     IT V_index;
-    while(!finished_algorithm){
+    // finished_algorithm when currentRoot == N
+    while(currentRoot.load(std::memory_order_relaxed)!=graph.getN()){
         if (worklist.try_dequeue(V_index)){
             read_messages[tid]++;       
 
             // Turn on flag
             TailOfAugmentingPath = search_persistent(graph,V_index,f,worklist,tid,
-            finished_iteration,finished_algorithm);
+            found_augmenting_path);
 
             // At all-spin state, there should be parity between 
             // num en/dequeue
@@ -288,7 +272,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             bool desired = TailOfAugmentingPath != nullptr;
             // First searcher to find an AP
             // If any AP was found only one walker will enter this loop
-            if (desired && finished_iteration.compare_exchange_strong(expected, desired)) {
+            if (desired && found_augmenting_path.compare_exchange_strong(expected, desired)) {
                 // Need to wait here to avoid augmenting while the graph is being traversed.
                 while(num_dequeued.load()!=num_enqueued.load()){}
                 augment(graph,TailOfAugmentingPath,f);
@@ -297,8 +281,8 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             //num_spinning++;
             if (1+num_spinning.fetch_add(1) == num_dequeued.load() &&
                 num_dequeued.load() == num_enqueued.load()) {
-                finished_iteration.store(false);
-                next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
+                found_augmenting_path.store(false);
+                next_iteration(graph,currentRoot,num_enqueued,worklist);
             }
 
         } else {
@@ -314,8 +298,7 @@ template <typename IT, typename VT>
 void Matcher::next_iteration(Graph<IT, VT>& graph, 
                     std::atomic<IT> & currentRoot,
                     std::atomic<IT> & num_enqueued,
-                    moodycamel::ConcurrentQueue<IT> &worklist,
-                    bool & finished_algorithm){
+                    moodycamel::ConcurrentQueue<IT> &worklist){
     while(++currentRoot < graph.getN()){
         if (!graph.IsMatched(currentRoot)) {
             //printf("Enqueuing %d\n",i);
@@ -326,7 +309,7 @@ void Matcher::next_iteration(Graph<IT, VT>& graph,
         // Rest of pushes are done by the persistent threads.
     }
     // Turn off flag
-    finished_algorithm = (currentRoot==graph.getN());
+    //finished_algorithm.store(currentRoot==graph.getN(),std::memory_order_relaxed);
 }
 
 template <typename IT, typename VT>
@@ -335,8 +318,7 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
                     Frontier<IT> & f,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     int tid,
-                    std::atomic<bool> & finished_iteration,
-                    bool & finished_algorithm) {
+                    std::atomic<bool> & found_augmenting_path) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
     int64_t FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
@@ -354,7 +336,7 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     // Gracefully exit other searchers if an augmenting path is found.
-    while(!stack.empty() && !finished_iteration.load()){
+    while(!stack.empty() && !found_augmenting_path.load()){
         stackEdge = stack.back();
         stack.pop_back();
 
