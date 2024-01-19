@@ -284,28 +284,43 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     IT V_index;
     while(!finished_algorithm){
         if (worklist.try_dequeue(V_index)){
+            /*
+            if (atomicBoolVector[tid].load()) {
+                atomicBoolVector[tid].store(false);
+                num_spinning--;
+            }
             // Deplete the queue once an AP is found.
             if(finished_iteration.load())
                 continue;
+            */
+
             read_messages[tid]++;
             // This is how you prevent race conditions.
             // by decrementing number of spinning before incrementing
             // num_dequeued.
             // At all-spin state, there should be parity between 
             // num en/dequeue and NT-1 threads spinning.
-            /*
-            if (atomicBoolVector[tid].load()) {
-                atomicBoolVector[tid].store(false);
-                num_spinning--;
-            }
-            */
+        
+            
             num_dequeued++;
             // Turn on flag
             TailOfAugmentingPath = search_persistent(graph,V_index,f,worklist,tid,
             finished_iteration,finished_algorithm,numThreads);
             // IF I FOUND A PATH MAKE SURE ALL OTHERS ARE SPINNING BEFORE AUGMENTING!!!
             if (TailOfAugmentingPath){
-                //augment(graph,TailOfAugmentingPath,f);
+                
+                // Signal all other threads to stop searching and deplete the stack
+                //finished_iteration.store(true);
+
+                // Empty stack with all workers spinning.
+                /*
+                while(worklist.size_approx() || num_spinning.load()!=(num_running.load()-1)){
+                    printf("|worklist| %ld |num_spinning| %ld |num_running| %ld \n",
+                    worklist.size_approx(),num_spinning.load(),num_running.load());
+                }
+                */
+                augment(graph,TailOfAugmentingPath,f);
+                //finished_iteration.store(false);
             }
             next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
         } else {
@@ -315,6 +330,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                 atomicBoolVector[tid].store(true);
                 num_spinning++;
             }
+
             if (num_dequeued.load()==num_enqueued.load() &&
                 num_spinning.load()==num_running.load() &&
                 tid == 0){
