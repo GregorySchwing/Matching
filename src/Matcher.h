@@ -302,22 +302,11 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                 augment(graph,TailOfAugmentingPath,f);
             }
 
-            num_spinning++;
-            
-            // No augmenting paths were found
-            if (num_dequeued.load() == num_enqueued.load() &&
-                num_dequeued.load() == num_spinning.load()) {
-                bool expected = false;
-                if (incremented_iteration.compare_exchange_strong(expected, true)) {
-                    // Only one thread will enter this block
-
-                    // Your code here...
-                    finished_iteration.store(false);
-                    next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
-
-                    // Release the flag when done
-                    incremented_iteration.store(false);
-                }
+            //num_spinning++;
+            if (1+num_spinning.fetch_add(1) == num_dequeued.load() &&
+                num_dequeued.load() == num_enqueued.load()) {
+                finished_iteration.store(false);
+                next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
             }
 
         } else {
