@@ -62,7 +62,7 @@ private:
                     Frontier<IT> & f,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     int tid,
-                    std::atomic<bool> & finished_iteration,
+                    std::atomic<bool> & found_any_augmenting_path,
                     bool & finished_algorithm,
                     const int numThreads);
     template <typename IT, typename VT>
@@ -285,19 +285,29 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             // At all-spin state, there should be parity between 
             // num en/dequeue
             num_dequeued++;
-            
+
+            // All parallel searchers have at least gotten here.
+            // It is possible that one
             // Always false
             bool expected = false;
             // Found AP
             bool desired = TailOfAugmentingPath != nullptr;
             // First searcher to find an AP
+            // If any AP was found only one walker will enter this loop
             if (desired && finished_iteration.compare_exchange_strong(expected, desired)) {
+                // Need to wait here to avoid augmenting while the graph is being traversed.
                 while(num_dequeued.load()!=num_enqueued.load()){}
                 augment(graph,TailOfAugmentingPath,f);
+            }
+
+            num_spinning++;
+            
+            // No augmenting paths were found
+            if (num_dequeued.load()==num_enqueued.load() &&
+                num_dequeued.load()==num_spinning.load()) {
                 finished_iteration.store(false);
                 next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
-            } else if (num_dequeued.load()==num_enqueued.load())
-                next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
+            }
 
         } else {
             continue;
@@ -333,7 +343,7 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
                     Frontier<IT> & f,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     int tid,
-                    std::atomic<bool> & finished_iteration,
+                    std::atomic<bool> & found_any_augmenting_path,
                     bool & finished_algorithm,
                     const int numThreads) {
     Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
@@ -353,7 +363,7 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     // Gracefully exit other searchers if an augmenting path is found.
-    while(!stack.empty() && !finished_iteration.load()){
+    while(!stack.empty() && !found_any_augmenting_path.load()){
         stackEdge = stack.back();
         stack.pop_back();
 
