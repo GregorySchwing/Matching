@@ -44,6 +44,7 @@ int main(int argc, char **argv) {
     // Read the number of iterations and number of threads from cxxopts results
     int num_iters = result["iterations"].as<int>();
     int num_threads = result["threads"].as<int>();
+    std::vector<double> matching_times; // To store matching times for each iteration
 
     for (int i = 0;i<num_iters;++i){
         Statistics<int64_t> stats(G.getN());
@@ -58,9 +59,21 @@ int main(int argc, char **argv) {
         std::cout << "Maximum matching time: "<< duration.count() << " seconds" << '\n';
         auto count = std::count_if(G.matching.begin(), G.matching.end(),[&](auto const& val){ return val > -1; });
         std::cout << "Maximum matching size: "<<  count/2 << '\n';
-        // Writing data to file
+        matching_times.push_back(duration.count());
         //stats.write_file(argv[1]);
     }
+    // Calculate mean and standard deviation
+    double mean = std::accumulate(matching_times.begin(), matching_times.end(), 0.0) / matching_times.size();
+    double stdev = 0.0;
+    for (const auto& time : matching_times) {
+        stdev += std::pow(time - mean, 2);
+    }
+    stdev = std::sqrt(stdev / matching_times.size());
+
+    // Print mean and standard deviation
+    std::cout << "Mean matching time: " << mean << " seconds" << '\n';
+    std::cout << "Standard deviation: " << stdev << " seconds" << '\n';
+
     //Matcher::match_wl<int64_t, std::string>(G,stats);
     std::vector<int64_t> match_count(G.getM(),0);
     // Iterate through the matching vector and update the match_count array
