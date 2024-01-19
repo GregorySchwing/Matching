@@ -248,11 +248,10 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     Vertex<IT>* TailOfAugmentingPath;
-    // Access the graph elements as needed
-    //for (std::size_t i = 0; i < graph.getN(); ++i) {
+    const size_t N = graph.getN();
     IT V_index;
     // finished_algorithm when currentRoot == N
-    while(currentRoot.load(std::memory_order_relaxed)!=graph.getN()){
+    while(currentRoot.load(std::memory_order_relaxed)!=N){
         if (worklist.try_dequeue(V_index)){
             read_messages[tid]++;       
 
@@ -336,7 +335,7 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     // Gracefully exit other searchers if an augmenting path is found.
-    while(!stack.empty() && !found_augmenting_path.load()){
+    while(!stack.empty() && !found_augmenting_path.load(std::memory_order_relaxed)){
         stackEdge = stack.back();
         stack.pop_back();
 
