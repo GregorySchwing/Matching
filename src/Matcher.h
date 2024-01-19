@@ -22,7 +22,9 @@ public:
     template <typename IT, typename VT>
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
     template <typename IT, typename VT>
-    static void match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats);
+    static void match_wl(Graph<IT, VT>& graph, 
+                        Statistics<IT>& stats,
+                        int num_threads);
     template <typename IT, typename VT>
     static void match_persistent_wl(Graph<IT, VT> &graph,
                                     moodycamel::ConcurrentQueue<IT> &worklist,
@@ -143,7 +145,9 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 
 #include "ThreadFactory.h"
 template <typename IT, typename VT>
-void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
+void Matcher::match_wl(Graph<IT, VT>& graph, 
+                        Statistics<IT>& stats,
+                        int num_threads) {
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
     std::mutex mtx;
@@ -161,7 +165,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     std::atomic<bool> incremented_iteration = false;
     std::atomic<bool> finished_iteration = false;
     bool finished_algorithm = false;
-    unsigned num_threads = 8;
+    
     std::vector<std::atomic<bool>> atomicBoolVector(num_threads);
     std::vector<std::thread> workers(num_threads);
     std::vector<size_t> read_messages;
@@ -433,7 +437,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     IT nextVertexIndex;
     IT time = 0;
     Stack<IT> &stack = f.stack;
-    Stack<IT> &tree = f.tree;
+    Stack<Vertex<IT>> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
     //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));

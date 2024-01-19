@@ -52,8 +52,10 @@ int main(int argc, char **argv) {
             atomicBool.store(-1);
         }
         auto match_start = high_resolution_clock::now();
-        //Matcher::match<int64_t, std::string>(G,stats);
-        Matcher::match_wl<int64_t, std::string>(G,stats);
+        if (num_threads==1)
+            Matcher::match<int64_t, std::string>(G,stats);
+        else
+            Matcher::match_wl<int64_t, std::string>(G,stats,num_threads);
         auto match_end = high_resolution_clock::now();
         auto duration = duration_cast<seconds>(match_end - match_start);
         std::cout << "Maximum matching time: "<< duration.count() << " seconds" << '\n';
