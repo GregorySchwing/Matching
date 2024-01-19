@@ -285,6 +285,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             // At all-spin state, there should be parity between 
             // num en/dequeue
             num_dequeued++;
+
             if(TailOfAugmentingPath)
                 augment(graph,TailOfAugmentingPath,f);
             next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
@@ -331,7 +332,7 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     IT nextVertexIndex;
     IT time = 0;
     Stack<IT> &stack = f.stack;
-    Stack<IT> &tree = f.tree;
+    Stack<Vertex<IT>> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
     f.reinit();

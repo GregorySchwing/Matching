@@ -11,12 +11,13 @@ class Frontier  {
 public:
     Frontier(size_t N, size_t M);
     void reinit();
+    void updateTree();
     void clear();
 
     // Other member functions...
     std::vector<Vertex<IT>> vertexVector;
     Stack<IT> stack;
-    Stack<IT> tree;
+    Stack<Vertex<IT>> tree;
     Stack<IT> path;
     DisjointSetUnion<IT> dsu;
 };
@@ -33,32 +34,43 @@ Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), s
 
 // Constructor
 template <typename IT>
-void Frontier<IT>::reinit(){ 
-    //DisjointSetUnionHelper<IT>::reset(10,vertexVector);     
-    //DisjointSetUnionHelper<IT>::find(10,vertexVector);       
-    for (auto V : tree) {
-        vertexVector[V].TreeField=-1;
-        vertexVector[V].BridgeField=-1;
-        vertexVector[V].ShoreField=-1;
-        vertexVector[V].AgeField=-1;
-        vertexVector[V].LinkField=V;
-        vertexVector[V].DirectParentField=-1;
-        vertexVector[V].GroupRootField=V;
-        vertexVector[V].SizeField=1;
+void Frontier<IT>::reinit(){      
+    for (auto &V : tree) {
+        vertexVector[V.LabelField].TreeField=-1;
+        vertexVector[V.LabelField].BridgeField=-1;
+        vertexVector[V.LabelField].ShoreField=-1;
+        vertexVector[V.LabelField].AgeField=-1;
+        vertexVector[V.LabelField].LinkField=V.LabelField;
+        vertexVector[V.LabelField].DirectParentField=-1;
+        vertexVector[V.LabelField].GroupRootField=V.LabelField;
+        vertexVector[V.LabelField].SizeField=1;
         #ifndef NDEBUG
-        dsu.link[V]=V;
-        dsu.directParent[V]=-1;
-        dsu.groupRoot[V]=V;
-        dsu.size[V]=1;
+        dsu.link[V.LabelField]=V.LabelField;
+        dsu.directParent[V.LabelField]=-1;
+        dsu.groupRoot[V.LabelField]=V.LabelField;
+        dsu.size[V.LabelField]=1;
         #endif
     }
-
 }
-
 
 // Constructor
 template <typename IT>
-void Frontier<IT>::clear(){       
+void Frontier<IT>::updateTree(){      
+    for (auto &V : tree) {
+        V.TreeField=vertexVector[V.LabelField].TreeField;
+        V.BridgeField=vertexVector[V.LabelField].BridgeField;
+        V.ShoreField=vertexVector[V.LabelField].ShoreField;
+        V.AgeField=vertexVector[V.LabelField].AgeField;
+        V.LinkField=vertexVector[V.LabelField].LinkField;
+        V.DirectParentField=vertexVector[V.LabelField].DirectParentField;
+        V.GroupRootField=vertexVector[V.LabelField].GroupRootField;
+        V.SizeField=vertexVector[V.LabelField].SizeField;
+    }
+}
+
+// Constructor
+template <typename IT>
+void Frontier<IT>::clear(){
     stack.clear();
     tree.clear();
     path.clear();
