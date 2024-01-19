@@ -285,10 +285,20 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             // At all-spin state, there should be parity between 
             // num en/dequeue
             num_dequeued++;
-
-            if(TailOfAugmentingPath)
+            
+            // Always false
+            bool expected = false;
+            // Found AP
+            bool desired = TailOfAugmentingPath != nullptr;
+            // First searcher to find an AP
+            if (desired && finished_iteration.compare_exchange_strong(expected, desired)) {
+                while(num_dequeued.load()!=num_enqueued.load()){}
                 augment(graph,TailOfAugmentingPath,f);
-            next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
+                finished_iteration.store(false);
+                next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
+            } else if (num_dequeued.load()==num_enqueued.load())
+                next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
+
         } else {
             continue;
         }
