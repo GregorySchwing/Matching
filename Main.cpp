@@ -32,7 +32,8 @@ int main(int argc, char **argv) {
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Matching (|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     // Assign all elements in the vector to false
-    for (int i = 0;i<20;++i){
+    int num_iters = 1;
+    for (int i = 0;i<num_iters;++i){
         Statistics<int64_t> stats(G.getN());
         for (auto& atomicBool : G.matching) {
             atomicBool.store(-1);

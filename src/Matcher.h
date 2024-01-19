@@ -32,6 +32,7 @@ public:
                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                     std::vector<size_t> &read_messages,
                                     std::atomic<bool>& finished_iteration,
+                                    std::atomic<Vertex<IT>*> &TailOfAugmentingPath,
                                     bool &finished_algorithm,
                                     std::atomic<IT> & currentRoot,
                                     std::mutex & mtx,
@@ -143,12 +144,6 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 #include "ThreadFactory.h"
 template <typename IT, typename VT>
 void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
-    /*
-    for (unsigned num_threads = 1; num_threads < 16; num_threads*=2){
-    for (auto& atomicBool : graph.matching) {
-        atomicBool.store(-1);
-    }
-    */
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
     std::mutex mtx;
@@ -159,6 +154,8 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     std::atomic<IT> num_spinning = 0;
     std::vector<bool> spinning;
     std::atomic<IT> currentRoot = 0;
+    std::atomic<Vertex<IT>*> TailOfAugmentingPath = nullptr;
+
     // 8 workers.
     //std::atomic<bool> finished_iteration = 0;
     //std::atomic<bool> finished_algorithm = 0;
@@ -178,7 +175,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     spinning.resize(num_threads,false);
     // Access the graph elements as needed
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,
-    currentRoot,finished_iteration,finished_algorithm,
+    currentRoot,finished_iteration,TailOfAugmentingPath,finished_algorithm,
     mtx,cv,num_enqueued,num_dequeued,num_running,num_spinning,spinning,atomicBoolVector);
 
     auto match_start = high_resolution_clock::now();
@@ -215,9 +212,6 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
         tot_read_messages += n;
     }
     printf("Total read_messages %zu \n", tot_read_messages);
-    /*
-    }
-    */
 }
 
 
@@ -260,6 +254,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& finished_iteration,
+                                std::atomic<Vertex<IT>*> &TailOfAugmentingPath,
                                 bool &finished_algorithm,
                                 std::atomic<IT> & currentRoot,
                                 std::mutex & mtx,
@@ -277,66 +272,62 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     auto allocate_end = high_resolution_clock::now();
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
-    Vertex<IT> * TailOfAugmentingPath;
+    Vertex<IT>* LocalCopy_TailOfAugmentingPath;
     // Access the graph elements as needed
     //for (std::size_t i = 0; i < graph.getN(); ++i) {
     num_running++;
     IT V_index;
     while(!finished_algorithm){
         if (worklist.try_dequeue(V_index)){
-            /*
-            if (atomicBoolVector[tid].load()) {
-                atomicBoolVector[tid].store(false);
-                num_spinning--;
-            }
-            // Deplete the queue once an AP is found.
-            if(finished_iteration.load())
-                continue;
-            */
+            read_messages[tid]++;       
 
-            read_messages[tid]++;
-            // This is how you prevent race conditions.
-            // by decrementing number of spinning before incrementing
-            // num_dequeued.
-            // At all-spin state, there should be parity between 
-            // num en/dequeue and NT-1 threads spinning.
-        
-            
-            num_dequeued++;
+            // Deplete the queue once an AP is found.
+            if(finished_iteration.load()){
+                num_dequeued++;
+                continue;
+            }
             // Turn on flag
-            TailOfAugmentingPath = search_persistent(graph,V_index,f,worklist,tid,
+            LocalCopy_TailOfAugmentingPath = search_persistent(graph,V_index,f,worklist,tid,
             finished_iteration,finished_algorithm,numThreads);
             // IF I FOUND A PATH MAKE SURE ALL OTHERS ARE SPINNING BEFORE AUGMENTING!!!
-            if (TailOfAugmentingPath){
-                
+            // Store Pointer to Vertex at end of AP, only the first to succeed is stored.
+            Vertex<IT>* expected = nullptr;
+            // Store Pointer to Vertex at end of AP, only first to succeed is stored.
+            // Case 1 If Global TailOfAugmentingPath != (expected == nullptr)
+            // Someone else has found an AP already.
+            // expected = TailOfAugmentingPath
+            // Case 2 If Global TailOfAugmentingPath == (expected == nullptr)
+            // Im the first to find an AP this iteration.
+            // TailOfAugmentingPath = LocalCopy_TailOfAugmentingPath
+            if (TailOfAugmentingPath.compare_exchange_strong(expected,LocalCopy_TailOfAugmentingPath)){
                 // Signal all other threads to stop searching and deplete the stack
-                //finished_iteration.store(true);
-
-                // Empty stack with all workers spinning.
-                /*
-                while(worklist.size_approx() || num_spinning.load()!=(num_running.load()-1)){
-                    printf("|worklist| %ld |num_spinning| %ld |num_running| %ld \n",
-                    worklist.size_approx(),num_spinning.load(),num_running.load());
-                }
-                */
-                augment(graph,TailOfAugmentingPath,f);
-                //finished_iteration.store(false);
+                finished_iteration.store(true);
+                // Wait to augment when stack is depleted.
+                // augment(graph,TailOfAugmentingPath,f);
+                // I will reset TailOfAugmentingPath to nullptr after augmenting, but
+                // before starting next iteration.
             }
-            next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
+
+            // At all-spin state, there should be parity between 
+            // num en/dequeue
+            num_dequeued++;
+
         } else {
-            /*
-            // Avoid lots of atomic ops when possible.
-            if (!atomicBoolVector[tid].load()) {
-                atomicBoolVector[tid].store(true);
-                num_spinning++;
-            }
-
-            if (num_dequeued.load()==num_enqueued.load() &&
-                num_spinning.load()==num_running.load() &&
-                tid == 0){
+            if (num_dequeued.load()==num_enqueued.load() && mtx.try_lock()){
+                printf("AQUIRED LOCK!!! num_enqueued %ld num_dequeued %ld\n",num_enqueued.load(),num_dequeued.load());
+                // IDK cant hurt.
+                if (num_dequeued.load()!=num_enqueued.load())
+                    continue;
+                // If an AP was found, augment.
+                if (TailOfAugmentingPath.load())
+                    augment(graph,TailOfAugmentingPath.load(),f);
+                TailOfAugmentingPath.store(nullptr);
+                finished_iteration.store(false);
                 next_iteration(graph,currentRoot,num_enqueued,worklist,finished_algorithm);
+                mtx.unlock();
+            } else {
+                printf("num_enqueued %ld num_dequeued %ld\n",num_enqueued.load(),num_dequeued.load());
             }
-            */
             continue;
         }
     }
