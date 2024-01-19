@@ -11,6 +11,9 @@ private:
     size_t capacity;
 
 public:
+    // Default Constructor
+    Stack();
+
     // Constructor
     Stack(size_t capacity);
 
@@ -53,6 +56,10 @@ public:
         return data.begin() + top;
     }
 };
+
+// Constructor
+template <typename IT>
+Stack<IT>::Stack() {}
 
 // Constructor
 template <typename IT>
