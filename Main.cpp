@@ -38,6 +38,7 @@ int main(int argc, char **argv) {
             atomicBool.store(-1);
         }
         auto match_start = high_resolution_clock::now();
+        //Matcher::match<int64_t, std::string>(G,stats);
         Matcher::match_wl<int64_t, std::string>(G,stats);
         auto match_end = high_resolution_clock::now();
         auto duration = duration_cast<seconds>(match_end - match_start);
@@ -45,7 +46,7 @@ int main(int argc, char **argv) {
         auto count = std::count_if(G.matching.begin(), G.matching.end(),[&](auto const& val){ return val > -1; });
         std::cout << "Maximum matching size: "<<  count/2 << '\n';
         // Writing data to file
-        stats.write_file(argv[1]);
+        //stats.write_file(argv[1]);
     }
     //Matcher::match_wl<int64_t, std::string>(G,stats);
     std::vector<int64_t> match_count(G.getM(),0);

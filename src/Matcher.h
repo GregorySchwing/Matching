@@ -146,10 +146,12 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 #include "ThreadFactory.h"
 template <typename IT, typename VT>
 void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
+    /*
     for (unsigned num_threads = 1; num_threads < 16; num_threads*=2){
     for (auto& atomicBool : graph.matching) {
         atomicBool.store(-1);
     }
+    */
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
     std::mutex mtx;
@@ -166,7 +168,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
     
     bool finished_iteration = false;
     bool finished_algorithm = false;
-    //unsigned num_threads = 1;
+    unsigned num_threads = 8;
     std::vector<std::atomic<bool>> atomicBoolVector(num_threads);
     std::vector<std::thread> workers(num_threads);
     std::vector<size_t> read_messages;
@@ -193,20 +195,22 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
         break;
     }
     // Wait for the worker.
+    /*
     {
         std::unique_lock lk(mtx);
         cv.wait(lk, [&] { return finished_algorithm; });
     }
+    */
+    for (auto& t : workers) {
+        t.join();
+    }
+    auto match_end = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(match_end - match_start);
 
     std::cout << "NUM ENQUEUED " << num_enqueued.load() << std::endl;
     std::cout << "NUM DEQUEUED " << num_dequeued.load() << std::endl;
     std::cout << "NUM SPINNING " << num_spinning.load() << std::endl;
 
-    auto match_end = high_resolution_clock::now();
-    auto duration = duration_cast<milliseconds>(match_end - match_start);
-    for (auto& t : workers) {
-        t.join();
-    }
     size_t tot_read_messages = 0;
     int ni = 0;
     for (size_t n : read_messages){
@@ -214,7 +218,9 @@ void Matcher::match_wl(Graph<IT, VT>& graph, Statistics<IT>& stats) {
         tot_read_messages += n;
     }
     printf("Total read_messages %zu \n", tot_read_messages);
+    /*
     }
+    */
 }
 
 
