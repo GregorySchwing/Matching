@@ -175,7 +175,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     std::atomic<IT> num_enqueued(0);
     std::atomic<IT> num_dequeued(0);
     std::atomic<IT> num_spinning(0);
-    std::atomic<IT> currentRoot(-2);
+    std::atomic<IT> currentRoot(-1);
     std::atomic<bool> found_augmenting_path(false);
     
     //std::vector<std::atomic<bool>> atomicBoolVector(num_threads);
@@ -264,7 +264,17 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
                                 std::atomic<IT> & num_spinning) {
-    if (!tid){
+
+    IT expected = -1;
+    IT desired = 0;
+    // First to encounter this code will see currentRoot == -2,
+    // it will be atomically exchanged with -1, and return true.
+    // All others will modify expected, inconsequentially,
+    // and enter the while loop.
+    // The worker thread has done the work,
+    // Notify the master thread to continue the work.
+    auto thread_match_start = high_resolution_clock::now();
+    if (currentRoot.compare_exchange_strong(expected, desired)) {
 
         auto allocate_start = high_resolution_clock::now();
         Frontier<IT> f(graph.getN(),graph.getM());
@@ -293,6 +303,9 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                 }
             }
         }
+        auto search_end = high_resolution_clock::now();
+        auto duration_search = duration_cast<milliseconds>(allocate_end - allocate_start);
+        std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
     }
 }
 
