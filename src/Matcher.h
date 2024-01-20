@@ -85,7 +85,7 @@ void Matcher::match(Graph<IT, VT>& graph) {
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
     const size_t N = graph.getN();
-    //const size_t N = 5;
+    auto search_start = high_resolution_clock::now();
     for (std::size_t i = 0; i < N; ++i) {
         if (!graph.IsMatched(i)) {
             //printf("SEARCHING FROM %ld!\n",i);
@@ -103,6 +103,9 @@ void Matcher::match(Graph<IT, VT>& graph) {
             }
         }
     }
+    auto search_end = high_resolution_clock::now();
+    auto duration_search = duration_cast<seconds>(search_end - search_start);
+    std::cout << "Algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
 }
 
 
@@ -142,6 +145,7 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 template <typename IT, typename VT>
 void Matcher::match_wl(Graph<IT, VT>& graph, 
                         int num_threads) {
+    auto mt_thread_coordination_start = high_resolution_clock::now();
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
     std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> worklists;
@@ -164,6 +168,12 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     std::vector<std::thread> workers(num_threads);
     std::vector<size_t> read_messages;
     read_messages.resize(num_threads);
+    auto mt_thread_coordination_end = high_resolution_clock::now();
+    auto durationmt = duration_cast<microseconds>(mt_thread_coordination_end - mt_thread_coordination_start);
+    std::cout << "Worklist and atomic variable allocation time: "<< durationmt.count() << " microseconds" << '\n';
+
+
+
     //spinning.resize(num_threads,false);
     // Access the graph elements as needed
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,
@@ -171,13 +181,17 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     currentRoot,found_augmenting_path,
     worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_spinning);
 
+    auto join_thread_start = high_resolution_clock::now();
     for (auto& t : workers) {
         t.join();
     }
+    auto join_thread_end = high_resolution_clock::now();
+    auto duration = duration_cast<seconds>(join_thread_end - join_thread_start);
+    std::cout << "Thread joining time: "<< duration.count() << " seconds" << '\n';
 
-    std::cout << "NUM ENQUEUED " << num_enqueued.load() << std::endl;
-    std::cout << "NUM DEQUEUED " << num_dequeued.load() << std::endl;
-    std::cout << "NUM SPINNING " << num_spinning.load() << std::endl;
+    std::cout << "NUM ENQUEUED " << num_enqueued.load() << '\n';
+    std::cout << "NUM DEQUEUED " << num_dequeued.load() << '\n';
+    std::cout << "NUM SPINNING " << num_spinning.load() << '\n';
 
     size_t tot_read_messages = 0;
     int ni = 0;
@@ -252,6 +266,9 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     // it will be atomically exchanged with -1, and return true.
     // All others will modify expected, inconsequentially,
     // and enter the while loop.
+    // The worker thread has done the work,
+    // Notify the master thread to continue the work.
+    auto thread_match_start = high_resolution_clock::now();
     if (currentRoot.compare_exchange_strong(expected, desired)) {
         next_iteration(graph,currentRoot,num_enqueued,tid,worklists);
     }
@@ -298,10 +315,13 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)==N; });
         }
     }
-    // The worker thread has done the work,
-    // Notify the master thread to continue the work.
+    auto thread_match_end = high_resolution_clock::now();
+    auto duration = duration_cast<seconds>(thread_match_end - thread_match_start);
+    std::cout << "Thread "<< tid << " algorithm execution time: "<< duration.count() << " seconds" << '\n';
+
     for (auto & cv:worklistCVs)
         cv.notify_one();
+
 }
 
 template <typename IT, typename VT>
