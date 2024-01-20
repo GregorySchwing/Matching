@@ -72,7 +72,7 @@ private:
                         const Vertex<IT> * TailOfAugmentingPathBase,
                         std::vector<Vertex<IT>> & vertexVector,
                         //std::list<IT> & path,
-                        Stack<IT> & path);
+                        std::vector<IT> & path);
 };
 
 template <typename IT, typename VT>
@@ -357,7 +357,7 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
     IT time = 0;
-    Stack<IT> &stack = f.stack;
+    std::vector<IT> &stack = f.stack;
     Stack<Vertex<IT>> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
@@ -438,7 +438,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
     IT time = 0;
-    Stack<IT> &stack = f.stack;
+    std::vector<IT> &stack = f.stack;
     Stack<Vertex<IT>> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
@@ -520,7 +520,7 @@ void Matcher::augment(Graph<IT, VT>& graph,
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
     //std::list<IT> path;
-    Stack<IT> & path = f.path;
+    std::vector<IT> & path = f.path;
     IT edge;
     // W
     Vertex<IT>*nextVertex;
@@ -575,7 +575,7 @@ void Matcher::pathThroughBlossom(Graph<IT, VT>& graph,
                     const Vertex<IT> * TailOfAugmentingPathBase,
                     std::vector<Vertex<IT>> & vertexVector,
                     //std::list<IT> & path,
-                    Stack<IT> & path) {
+                    std::vector<IT> & path) {
     // W
     Vertex<IT>*nextVertex;
     // if (V != B)

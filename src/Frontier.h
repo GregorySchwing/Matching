@@ -16,20 +16,21 @@ public:
 
     // Other member functions...
     std::vector<Vertex<IT>> vertexVector;
-    Stack<IT> stack;
+    std::vector<IT> stack;
     Stack<Vertex<IT>> tree;
-    Stack<IT> path;
+    std::vector<IT> path;
     DisjointSetUnion<IT> dsu;
 };
 
 // Constructor
 template <typename IT>
-Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), stack(M){
+Frontier<IT>::Frontier(size_t N, size_t M): tree(N) {
     // for backwards compatability...
     #ifndef NDEBUG
     dsu.reset(N);
     #endif
-    std::iota(vertexVector.begin(), vertexVector.end(), 0);
+    vertexVector.reserve(N);
+    std::iota(vertexVector.begin(), vertexVector.begin()+N, 0);
 }
 
 // Constructor
