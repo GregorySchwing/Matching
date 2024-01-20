@@ -146,7 +146,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     std::atomic<IT> num_enqueued(0);
     std::atomic<IT> num_dequeued(0);
     std::atomic<IT> num_spinning(0);
-    std::atomic<IT> currentRoot(0);
+    std::atomic<IT> currentRoot(-2);
     std::atomic<bool> found_augmenting_path(false);
     
     //std::vector<std::atomic<bool>> atomicBoolVector(num_threads);
@@ -159,28 +159,9 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     currentRoot,found_augmenting_path,
     mtx,cv,num_enqueued,num_dequeued,num_spinning);
 
-    auto match_start = high_resolution_clock::now();
-    for (; currentRoot < graph.getN(); ++currentRoot) {
-        if (!graph.IsMatched(currentRoot)) {
-            // This prevents race-conditions at end.
-            num_enqueued++;
-            worklist.enqueue(currentRoot);
-        }
-        // Rest of pushes are done by the persistent threads.
-        break;
-    }
-    // Wait for the worker.
-    /*
-    {
-        std::unique_lock lk(mtx);
-        cv.wait(lk, [&] { return finished_algorithm; });
-    }
-    */
     for (auto& t : workers) {
         t.join();
     }
-    auto match_end = high_resolution_clock::now();
-    auto duration = duration_cast<milliseconds>(match_end - match_start);
 
     std::cout << "NUM ENQUEUED " << num_enqueued.load() << std::endl;
     std::cout << "NUM DEQUEUED " << num_dequeued.load() << std::endl;
@@ -250,6 +231,16 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     Vertex<IT>* TailOfAugmentingPath;
     const size_t N = graph.getN();
     IT V_index;
+
+    IT expected = -2;
+    IT desired = -1;
+    // First to encounter this code will see currentRoot == -2,
+    // it will be atomically exchanged with -1, and return true.
+    // All others will modify expected, inconsequentially,
+    // and enter the while loop.
+    if (currentRoot.compare_exchange_strong(expected, desired)) {
+        next_iteration(graph,currentRoot,num_enqueued,worklist);
+    }
     // finished_algorithm when currentRoot == N
     while(currentRoot.load(std::memory_order_relaxed)!=N){
         if (worklist.try_dequeue(V_index)){
