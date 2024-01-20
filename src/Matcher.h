@@ -264,6 +264,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
                                 std::atomic<IT> & num_spinning) {
+    const size_t N = graph.getN();
 
     IT expected = -1;
     IT desired = 0;
@@ -282,15 +283,14 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
         std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
         Vertex<IT>* TailOfAugmentingPath;
-        const size_t N = graph.getN();
         //const size_t N = 5;
 
         auto search_start = high_resolution_clock::now();
-        for (std::size_t i = 0; i < N; ++i) {
-            if (!graph.IsMatched(i)) {
+        for (; currentRoot < N; ++currentRoot) {
+            if (!graph.IsMatched(currentRoot)) {
                 //printf("SEARCHING FROM %ld!\n",i);
                 // Your matching logic goes here...
-                TailOfAugmentingPath=search(graph,i,f);
+                TailOfAugmentingPath=search(graph,currentRoot,f);
                 // If not a nullptr, I found an AP.
                 if (TailOfAugmentingPath){
                     augment(graph,TailOfAugmentingPath,f);
@@ -306,6 +306,12 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         auto search_end = high_resolution_clock::now();
         auto duration_search = duration_cast<milliseconds>(allocate_end - allocate_start);
         std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
+        for (auto & cv:worklistCVs)
+            cv.notify_one();
+    } else {
+        // If the worklist is empty, wait for a signal
+        std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
+        worklistCVs[tid].wait(lock, [&] { return currentRoot.load(std::memory_order_relaxed)==N; });
     }
 }
 
