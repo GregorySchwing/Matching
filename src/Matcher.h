@@ -23,7 +23,6 @@ public:
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
     template <typename IT, typename VT>
     static void match_wl(Graph<IT, VT>& graph, 
-                        Statistics<IT>& stats,
                         int num_threads);
     template <typename IT, typename VT>
     static void match_persistent_wl(Graph<IT, VT> &graph,
@@ -82,7 +81,9 @@ void Matcher::match(Graph<IT, VT>& graph) {
     std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     Vertex<IT> * TailOfAugmentingPath;
     // Access the graph elements as needed
-    for (std::size_t i = 0; i < graph.getN(); ++i) {
+    const size_t N = graph.getN();
+    //const size_t N = 5;
+    for (std::size_t i = 0; i < N; ++i) {
         if (!graph.IsMatched(i)) {
             //printf("SEARCHING FROM %ld!\n",i);
             // Your matching logic goes here...
@@ -137,7 +138,6 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 #include "ThreadFactory.h"
 template <typename IT, typename VT>
 void Matcher::match_wl(Graph<IT, VT>& graph, 
-                        Statistics<IT>& stats,
                         int num_threads) {
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
@@ -230,6 +230,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     std::cout << "Frontier (9|V|+|E|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     Vertex<IT>* TailOfAugmentingPath;
     const size_t N = graph.getN();
+    //const size_t N = 5;
     IT V_index;
 
     IT expected = -2;
@@ -275,6 +276,9 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                 next_iteration(graph,currentRoot,num_enqueued,worklist);
             }
 
+            f.reinit();
+            f.clear();
+
         } else {
             continue;
         }
@@ -309,8 +313,8 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
                     moodycamel::ConcurrentQueue<IT> &worklist,
                     int tid,
                     std::atomic<bool> & found_augmenting_path) {
-    Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
-    int64_t FromBaseVertexID,ToBaseVertexID;
+    Vertex<IT> *FromBase,*ToBase, *nextVertex;
+    IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
     IT time = 0;
@@ -318,8 +322,7 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     Stack<Vertex<IT>> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
-    f.reinit();
-    f.clear();
+
     nextVertex = &vertexVector[V_index];
     nextVertex->AgeField=time++;
     tree.push_back(*nextVertex);
@@ -391,8 +394,8 @@ template <typename IT, typename VT>
 Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f) {
-    Vertex<int64_t> *FromBase,*ToBase, *nextVertex;
-    int64_t FromBaseVertexID,ToBaseVertexID;
+    Vertex<IT> *FromBase,*ToBase, *nextVertex;
+    IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
     IT time = 0;
