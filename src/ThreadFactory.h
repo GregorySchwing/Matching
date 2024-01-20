@@ -53,12 +53,13 @@ public:
     static bool create_threads_concurrentqueue_wl(std::vector<std::thread> &threads,
                                                     unsigned num_threads,
                                                     std::vector<size_t> &read_messages,
+                                                    std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                                     Graph<IT, VT> &graph,
                                                     std::atomic<IT> & currentRoot,
                                                     std::atomic<bool>& found_augmenting_path,
-                                                    std::mutex & mtx,
-                                                    std::condition_variable & cv,
+                                                    std::vector<std::mutex> &worklistMutexes,
+                                                    std::vector<std::condition_variable> &worklistCVs,
                                                     std::atomic<IT> & num_enqueued,
                                                     std::atomic<IT> & num_dequeued,
                                                     std::atomic<IT> & num_spinning);
@@ -71,12 +72,13 @@ template <typename IT, typename VT>
 bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &threads,
                                                     unsigned num_threads,
                                                     std::vector<size_t> &read_messages,
+                                                    std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                                     Graph<IT, VT> &graph,
                                                     std::atomic<IT> & currentRoot,
                                                     std::atomic<bool>& found_augmenting_path,
-                                                    std::mutex & mtx,
-                                                    std::condition_variable & cv,
+                                                    std::vector<std::mutex> &worklistMutexes,
+                                                    std::vector<std::condition_variable> &worklistCVs,
                                                     std::atomic<IT> & num_enqueued,
                                                     std::atomic<IT> & num_dequeued,
                                                     std::atomic<IT> & num_spinning) {
@@ -84,10 +86,11 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
     //Matcher::search(graph,0,*(frontiers[0]));
     for (unsigned i = 0; i < num_threads; ++i) {
         //threads[i] = std::thread(&Matcher::hello_world, i);
-        threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl2<IT,VT>(graph,worklist,
+        threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl2<IT,VT>(graph,
+          worklists,worklist,
           read_messages,found_augmenting_path,
           currentRoot,
-          mtx,cv,i,num_enqueued,num_dequeued,num_spinning); } );
+          worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_spinning); } );
 
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
         // only CPU i as set.

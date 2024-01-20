@@ -30,12 +30,13 @@ public:
                                     bool &finished);
     template <typename IT, typename VT>
     static void match_persistent_wl2(Graph<IT, VT> &graph,
+                                    std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                     std::vector<size_t> &read_messages,
                                     std::atomic<bool>& found_augmenting_path,
                                     std::atomic<IT> & currentRoot,
-                                    std::mutex & mtx,
-                                    std::condition_variable & cv,
+                                    std::vector<std::mutex> &worklistMutexes,
+                                    std::vector<std::condition_variable> &worklistCVs,
                                     int tid,
                                     std::atomic<IT> & num_enqueued,
                                     std::atomic<IT> & num_dequeued,
@@ -49,8 +50,10 @@ private:
     template <typename IT, typename VT>
     static void next_iteration(Graph<IT, VT>& graph, 
                     std::atomic<IT> & currentRoot,
-                    std::atomic<IT> & num_enqueued,
-                    moodycamel::ConcurrentQueue<IT> &worklist);
+                    std::atomic<IT> & num_enqueued,  
+                    int tid,                  
+                    //moodycamel::ConcurrentQueue<IT> &worklist,
+                    std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &worklists);
     template <typename IT, typename VT>
     static Vertex<IT> * search_persistent(Graph<IT, VT>& graph, 
                     IT & V_index,
@@ -141,8 +144,16 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
                         int num_threads) {
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
-    std::mutex mtx;
-    std::condition_variable cv;
+    std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> worklists;
+    worklists.reserve(num_threads);
+    for (int i = 0; i < num_threads; ++i) {
+        // Initialize each queue with the desired parameters
+        worklists.emplace_back(moodycamel::ConcurrentQueue<IT>{capacity});
+    }
+    
+    std::vector<std::mutex> worklistMutexes(num_threads);
+    std::vector<std::condition_variable> worklistCVs(num_threads);
+
     std::atomic<IT> num_enqueued(0);
     std::atomic<IT> num_dequeued(0);
     std::atomic<IT> num_spinning(0);
@@ -155,9 +166,10 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     read_messages.resize(num_threads);
     //spinning.resize(num_threads,false);
     // Access the graph elements as needed
-    ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,worklist,graph,
+    ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,
+    worklists,worklist,graph,
     currentRoot,found_augmenting_path,
-    mtx,cv,num_enqueued,num_dequeued,num_spinning);
+    worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_spinning);
 
     for (auto& t : workers) {
         t.join();
@@ -213,12 +225,13 @@ void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
 
 template <typename IT, typename VT>
 void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
+                                std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
                                 std::atomic<IT> & currentRoot,
-                                std::mutex & mtx,
-                                std::condition_variable & cv,
+                                std::vector<std::mutex> &worklistMutexes,
+                                std::vector<std::condition_variable> &worklistCVs,
                                 int tid,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
@@ -240,11 +253,11 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
     // All others will modify expected, inconsequentially,
     // and enter the while loop.
     if (currentRoot.compare_exchange_strong(expected, desired)) {
-        next_iteration(graph,currentRoot,num_enqueued,worklist);
+        next_iteration(graph,currentRoot,num_enqueued,tid,worklists);
     }
     // finished_algorithm when currentRoot == N
     while(currentRoot.load(std::memory_order_relaxed)!=N){
-        if (worklist.try_dequeue(V_index)){
+        if (worklists[tid].try_dequeue(V_index)){
             read_messages[tid]++;       
 
             // Turn on flag
@@ -273,31 +286,37 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
             if (1+num_spinning.fetch_add(1) == num_dequeued.load() &&
                 num_dequeued.load() == num_enqueued.load()) {
                 found_augmenting_path.store(false);
-                next_iteration(graph,currentRoot,num_enqueued,worklist);
+                next_iteration(graph,currentRoot,num_enqueued,tid,worklists);
             }
 
             f.reinit();
             f.clear();
 
         } else {
-            continue;
+            // If the worklist is empty, wait for a signal
+            std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
+            worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)==N; });
         }
     }
     // The worker thread has done the work,
     // Notify the master thread to continue the work.
-    //cv.notify_one();
+    for (auto & cv:worklistCVs)
+        cv.notify_one();
 }
 
 template <typename IT, typename VT>
 void Matcher::next_iteration(Graph<IT, VT>& graph, 
                     std::atomic<IT> & currentRoot,
                     std::atomic<IT> & num_enqueued,
-                    moodycamel::ConcurrentQueue<IT> &worklist){
+                    //moodycamel::ConcurrentQueue<IT> &worklist,
+                    int tid,
+                    std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &worklists
+                    ){
     while(++currentRoot < graph.getN()){
         if (!graph.IsMatched(currentRoot)) {
             //printf("Enqueuing %d\n",i);
             num_enqueued++;
-            worklist.enqueue(currentRoot);
+            worklists[tid].enqueue(currentRoot);
             break;
         }
         // Rest of pushes are done by the persistent threads.
