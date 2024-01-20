@@ -10,6 +10,7 @@
 using namespace std::chrono;
 #include <list>
 #include <cxxopts.hpp>
+typedef int32_t INDEX_TYPE;
 
 int main(int argc, char **argv) {
     cxxopts::Options options("matcher", "A multi-threaded DFS-based Edmonds Blossom solver.");
@@ -29,13 +30,13 @@ int main(int argc, char **argv) {
     }
 
     std::filesystem::path in_path{result["file"].as<std::string>()};
-    FileReader<int64_t, std::string>  FR(in_path);
+    FileReader<INDEX_TYPE, std::string>  FR(in_path);
     //Graph<int64_t, std::string>  G(in_path);
     // A map is used for the frontier to limit copying N vertices.
     //std::unordered_map<int64_t, Vertex<int64_t>> vertexMap;
     // A vector is used for the frontier to allocate once all the memory ever needed.
     auto allocate_start = high_resolution_clock::now();
-    Graph<int64_t, std::string>  G(FR.indptr,FR.indices,FR.original_rows,
+    Graph<INDEX_TYPE, std::string>  G(FR.indptr,FR.indices,FR.original_rows,
     FR.original_cols,FR.original_vals,FR.N,FR.M);
     auto allocate_end = high_resolution_clock::now();
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
@@ -47,21 +48,23 @@ int main(int argc, char **argv) {
     std::vector<double> matching_times; // To store matching times for each iteration
 
     for (int i = 0;i<num_iters;++i){
-        Statistics<int64_t> stats(G.getN());
         for (auto& atomicBool : G.matching) {
             atomicBool.store(-1);
         }
         auto match_start = high_resolution_clock::now();
-        if (num_threads==1)
-            Matcher::match<int64_t, std::string>(G,stats);
-        else
-            Matcher::match_wl<int64_t, std::string>(G,stats,num_threads);
+        if (num_threads==1){
+            //Matcher::match<int64_t, std::string>(G,stats);
+            Matcher::match<INDEX_TYPE, std::string>(G);
+        } else {
+            Matcher::match_wl<INDEX_TYPE, std::string>(G,num_threads);
+        }
         auto match_end = high_resolution_clock::now();
         auto duration = duration_cast<seconds>(match_end - match_start);
         std::cout << "Maximum matching time: "<< duration.count() << " seconds" << '\n';
         auto count = std::count_if(G.matching.begin(), G.matching.end(),[&](auto const& val){ return val > -1; });
         std::cout << "Maximum matching size: "<<  count/2 << '\n';
         matching_times.push_back(duration.count());
+        //Statistics<INDEX_TYPE> stats(G.getN());
         //stats.write_file(argv[1]);
     }
     // Calculate mean and standard deviation
@@ -77,7 +80,7 @@ int main(int argc, char **argv) {
     std::cout << "Standard deviation: " << stdev << " seconds" << '\n';
 
     //Matcher::match_wl<int64_t, std::string>(G,stats);
-    std::vector<int64_t> match_count(G.getM(),0);
+    std::vector<INDEX_TYPE> match_count(G.getM(),0);
     // Iterate through the matching vector and update the match_count array
     for (auto const& val : G.matching) {
         if (val > -1 && static_cast<size_t>(val) < match_count.size()) {
