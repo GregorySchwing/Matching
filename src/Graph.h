@@ -19,7 +19,7 @@ namespace fmm = fast_matrix_market;
 template <typename IT, typename VT>
 class Graph {
 public:
-    Graph(const std::filesystem::path& in_path);
+    //Graph(const std::filesystem::path& in_path);
     Graph(  std::vector<IT> &_indptr,
             std::vector<IT> &_indices,
             std::vector<IT> &_original_rows,
@@ -27,13 +27,14 @@ public:
             std::vector<VT> &_original_vals,
             size_t N,
             size_t M);
+    /*
     Graph(  std::vector<IT> &indptr,
             std::vector<IT> &indices,
             std::vector<IT> &original_rows,
             std::vector<IT> &original_cols,
             std::vector<IT> &original_vals,
             std::size_t N,
-            std::size_t M);
+            std::size_t M);*/
     size_t getN() const;
     size_t getM() const;
     bool IsMatched(size_t index) const;
@@ -49,12 +50,12 @@ public:
     static IT EdgeFrom(const Graph<IT, VT>& graph, const IT edgeIndex);
     static IT EdgeTo(const Graph<IT, VT>& graph, const IT edgeIndex);
     // Other member functions...
-    std::vector<IT> indptr;
-    std::vector<IT> indices;
-    std::vector<IT> original_rows;
-    std::vector<IT> original_cols;
-    std::vector<VT> original_vals;
-    size_t N,M;
+    const std::vector<IT> &indptr;
+    const std::vector<IT> &indices;
+    const std::vector<IT> &original_rows;
+    const std::vector<IT> &original_cols;
+    const std::vector<VT> &original_vals;
+    const size_t N,M;
     std::vector<std::atomic<IT>> matching;
 
 private:    
@@ -63,10 +64,12 @@ private:
 };
 
 // Constructor
+/*
 template <typename IT, typename VT>
 Graph<IT,VT>::Graph(const std::filesystem::path& in_path) {
     read_file(in_path);
 }
+*/
 
 template <typename IT, typename VT>
 Graph<IT,VT>::Graph(std::vector<IT> &_indptr,
@@ -76,14 +79,14 @@ Graph<IT,VT>::Graph(std::vector<IT> &_indptr,
                     std::vector<VT> &_original_vals,
                     size_t _N,
                     size_t _M):
+                    indptr(_indptr),
+                    indices(_indices),
+                    original_rows(_original_rows),
+                    original_cols(_original_cols),
+                    original_vals(_original_vals),
                     N(_N),
                     M(_M),
                     matching(_N) {
-    indptr=std::move(_indptr);
-    indices=std::move(_indices);
-    original_rows=std::move(_original_rows);
-    original_cols=std::move(_original_cols);
-    original_vals=std::move(_original_vals);
     // Assign all elements in the vector to false
     for (auto& atomicBool : matching) {
         atomicBool.store(-1);
@@ -92,6 +95,7 @@ Graph<IT,VT>::Graph(std::vector<IT> &_indptr,
 
 
 // Constructor
+/*
 template <typename IT, typename VT>
 Graph<IT,VT>::Graph(std::vector<IT> &_indptr,
             std::vector<IT> &indices,
@@ -103,7 +107,7 @@ Graph<IT,VT>::Graph(std::vector<IT> &_indptr,
             matching(N) {
     //indptr = std::move(_indptr);
 }
-
+*/
 template <typename IT, typename VT>
 size_t Graph<IT,VT>::getN() const{
     return N;
