@@ -121,12 +121,12 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
             // If not a nullptr, I found an AP.
             if (TailOfAugmentingPath){
                 augment(graph,TailOfAugmentingPath,f);
-                stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.state.tree.size(),duration_cast<microseconds>(search_end - search_start));
+                stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.tree.size(),duration_cast<microseconds>(search_end - search_start));
                 f.reinit();
                 f.clear();
                 //printf("FOUND AP!\n");
             } else {
-                stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.state.tree.size(),duration_cast<microseconds>(search_end - search_start));
+                stats.write_entry(f.path.size() ? (2*f.path.size()-1):0,f.tree.size(),duration_cast<microseconds>(search_end - search_start));
                 f.clear();
                 //printf("DIDNT FOUND AP!\n");
             }
@@ -275,10 +275,6 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                 // Need to wait here to avoid augmenting while the graph is being traversed.
                 while(num_dequeued.load()!=num_enqueued.load()){}
                 augment(graph,TailOfAugmentingPath,f);
-                // Only time a search_persistent doesn't reinit/clear
-                // is if an AP was found.  thus do it here.
-                f.reinit();
-                f.clear();
             }
 
             //num_spinning++;
@@ -326,19 +322,17 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     int64_t FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
-    //Stack<IT> &stack = f.stack;
-    std::vector<IT> &stack = f.state.stack;
-    //Stack<Vertex<IT>> &tree = f.tree;
-    std::vector<Vertex<IT>> &tree = f.state.tree;
+    IT time = 0;
+    Stack<IT> &stack = f.stack;
+    Stack<Vertex<IT>> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
-
-    // A state might need this too.
-    IT &time = f.state.time;
-    // This should already be done before the state was pushed.
+    f.reinit();
+    f.clear();
     nextVertex = &vertexVector[V_index];
     nextVertex->AgeField=time++;
     tree.push_back(*nextVertex);
+
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     // Gracefully exit other searchers if an augmenting path is found.
@@ -399,8 +393,6 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
             Blossom::Shrink(graph,stackEdge,dsu,vertexVector,stack);
         }
     }
-    f.reinit();
-    f.clear();
     return nullptr;
 }
 
@@ -413,10 +405,8 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
     IT time = 0;
-    //Stack<IT> &stack = f.stack;
-    std::vector<IT> &stack = f.state.stack;
-    //Stack<Vertex<IT>> &tree = f.tree;
-    std::vector<Vertex<IT>> &tree = f.state.tree;
+    Stack<IT> &stack = f.stack;
+    Stack<Vertex<IT>> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
     //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));

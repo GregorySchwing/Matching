@@ -42,7 +42,7 @@ public:
     static bool pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                         std::vector<Vertex<IT>> & vertexVector, 
                                         IT V_index, 
-                                        std::vector<IT> &stack,
+                                        Stack<IT> &stack,
                                         IT optionalEdge1=-1,
                                         IT optionalEdge2=-1);
     static inline IT Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId);
@@ -211,7 +211,7 @@ template <typename IT, typename VT>
 bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                     std::vector<Vertex<IT>> & vertexVector, 
                                     IT V_index, 
-                                    std::vector<IT> &stack,
+                                    Stack<IT> &stack,
                                     IT optionalEdge1,
                                     IT optionalEdge2){
     IT nextVertexIndex;
@@ -231,7 +231,6 @@ bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph,
     }
     return false;
 }
-
 /*
 // Static method to find the other endpoint of an edge
 template <typename IT, typename VT>

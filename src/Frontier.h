@@ -5,7 +5,6 @@
 #include "Stack.h"
 #include "DSU.h"
 #include "DSU2.h"
-#include "State.h"
 
 template <typename IT>
 class Frontier  {
@@ -17,18 +16,15 @@ public:
 
     // Other member functions...
     std::vector<Vertex<IT>> vertexVector;
-    State<IT> state;
-    //std::vector<IT> stack;
-    //std::vector<Vertex<IT>> tree;
-
-    //Stack<Vertex<IT>> tree;
+    Stack<IT> stack;
+    Stack<Vertex<IT>> tree;
     Stack<IT> path;
     DisjointSetUnion<IT> dsu;
 };
 
 // Constructor
 template <typename IT>
-Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), path(M){
+Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), stack(M){
     // for backwards compatability...
     #ifndef NDEBUG
     dsu.reset(N);
@@ -39,7 +35,7 @@ Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), path(M){
 // Constructor
 template <typename IT>
 void Frontier<IT>::reinit(){      
-    for (auto &V : state.tree) {
+    for (auto &V : tree) {
         vertexVector[V.LabelField].TreeField=-1;
         vertexVector[V.LabelField].BridgeField=-1;
         vertexVector[V.LabelField].ShoreField=-1;
@@ -60,7 +56,7 @@ void Frontier<IT>::reinit(){
 // Constructor
 template <typename IT>
 void Frontier<IT>::updateTree(){      
-    for (auto &V : state.tree) {
+    for (auto &V : tree) {
         V.TreeField=vertexVector[V.LabelField].TreeField;
         V.BridgeField=vertexVector[V.LabelField].BridgeField;
         V.ShoreField=vertexVector[V.LabelField].ShoreField;
@@ -75,7 +71,8 @@ void Frontier<IT>::updateTree(){
 // Constructor
 template <typename IT>
 void Frontier<IT>::clear(){
-    state.clear();
+    stack.clear();
+    tree.clear();
     path.clear();
 }
 

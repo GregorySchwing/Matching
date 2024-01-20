@@ -18,7 +18,7 @@ class Blossom {
                             const IT stackEdge, 
                             DisjointSetUnion<IT> &dsu,
                             std::vector<Vertex<IT>> & vertexVector, 
-                            std::vector<IT> &stack);
+                            Stack<IT> &stack);
     private:
 
         // Helper function for path compression
@@ -45,7 +45,7 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
                     const IT stackEdge, 
                     DisjointSetUnion<IT> &dsu,
                     std::vector<Vertex<IT>> & vertexVector, 
-                    std::vector<IT> &stack){
+                    Stack<IT> &stack){
     // V,W
     IT EdgeFromVertexID,EdgeToVertexID;
     Vertex<IT> *EdgeToVertex;
