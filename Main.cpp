@@ -17,16 +17,20 @@ int main(int argc, char **argv) {
     options.add_options()
         ("file", "Input file", cxxopts::value<std::string>())
         ("iterations", "Number of iterations", cxxopts::value<int>()->default_value("1"))
-        ("threads", "Number of threads", cxxopts::value<int>()->default_value("1"));
+        ("threads", "Number of threads", cxxopts::value<int>()->default_value("1"))
+        ("execution", "Execution mode (0 for serial, 1 for parallel)", cxxopts::value<int>()->default_value("0"));  // Updated to accept an integer
 
-    options.parse_positional({"file", "iterations", "threads"});
+    options.parse_positional({"file", "iterations", "threads", "execution"});
     auto result = options.parse(argc, argv);
 
     if (!result.count("file")) {
-        std::cout << "Usage: " << argv[0] << " <file>.mtx <num_iterations> <num_threads>" << '\n';
+        std::cout << "Usage: " << argv[0] << " <file>.mtx <num_iterations> <num_threads> <0 for serial, 1 for parallel>" << '\n';
         return 0;
     } else {
         std::cout << "READING " << result["file"].as<std::string>() << '\n';
+        std::cout << "Number of iterations: " << result["iterations"].as<int>() << '\n';
+        std::cout << "Number of threads: " << result["threads"].as<int>() << '\n';
+        std::cout << "Execution mode: " << result["execution"].as<int>() << " (0 for serial, 1 for parallel)" << '\n';
     }
 
     std::filesystem::path in_path{result["file"].as<std::string>()};
@@ -45,6 +49,7 @@ int main(int argc, char **argv) {
     // Read the number of iterations and number of threads from cxxopts results
     int num_iters = result["iterations"].as<int>();
     int num_threads = result["threads"].as<int>();
+    int execution = result["execution"].as<int>();
     std::vector<double> matching_times; // To store matching times for each iteration
 
     for (int i = 0;i<num_iters;++i){
@@ -52,11 +57,10 @@ int main(int argc, char **argv) {
             atomicBool.store(-1);
         }
         auto match_start = high_resolution_clock::now();
-        if (num_threads==1){
-            //Matcher::match<int64_t, std::string>(G,stats);
-            Matcher::match<INDEX_TYPE, std::string>(G);
-        } else {
+        if (execution){
             Matcher::match_wl<INDEX_TYPE, std::string>(G,num_threads);
+        } else {
+            Matcher::match<INDEX_TYPE, std::string>(G);
         }
         auto match_end = high_resolution_clock::now();
         auto duration = duration_cast<seconds>(match_end - match_start);
