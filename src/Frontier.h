@@ -17,14 +17,14 @@ public:
     // Other member functions...
     std::vector<Vertex<IT>> vertexVector;
     std::vector<IT> stack;
-    Stack<Vertex<IT>> tree;
+    std::vector<Vertex<IT>> tree;
     std::vector<IT> path;
     DisjointSetUnion<IT> dsu;
 };
 
 // Constructor
 template <typename IT>
-Frontier<IT>::Frontier(size_t N, size_t M): tree(N) {
+Frontier<IT>::Frontier(size_t N, size_t M) {
     // for backwards compatability...
     #ifndef NDEBUG
     dsu.reset(N);

@@ -358,7 +358,7 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     IT nextVertexIndex;
     IT time = 0;
     std::vector<IT> &stack = f.stack;
-    Stack<Vertex<IT>> &tree = f.tree;
+    std::vector<Vertex<IT>> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
 
@@ -439,7 +439,7 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
     IT nextVertexIndex;
     IT time = 0;
     std::vector<IT> &stack = f.stack;
-    Stack<Vertex<IT>> &tree = f.tree;
+    std::vector<Vertex<IT>> &tree = f.tree;
     DisjointSetUnion<IT> &dsu = f.dsu;
     std::vector<Vertex<IT>> & vertexVector = f.vertexVector;
     //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
