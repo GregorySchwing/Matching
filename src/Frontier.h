@@ -15,6 +15,7 @@ public:
     void clear();
 
     // Other member functions...
+    IT time;
     std::vector<Vertex<IT>> vertexVector;
     std::vector<IT> stack;
     std::vector<Vertex<IT>> tree;
@@ -24,7 +25,7 @@ public:
 
 // Constructor
 template <typename IT>
-Frontier<IT>::Frontier(size_t N, size_t M) {
+Frontier<IT>::Frontier(size_t N, size_t M):time(0) {
     // for backwards compatability...
     #ifndef NDEBUG
     dsu.reset(N);
@@ -72,6 +73,7 @@ void Frontier<IT>::updateTree(){
 // Constructor
 template <typename IT>
 void Frontier<IT>::clear(){
+    time = 0;
     stack.clear();
     tree.clear();
     path.clear();
