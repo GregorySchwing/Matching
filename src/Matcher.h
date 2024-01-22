@@ -69,11 +69,17 @@ private:
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
                     std::atomic<IT> & num_enqueued,
-                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists);
+                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                    std::atomic<bool>& found_augmenting_path,
+                    std::atomic<IT> &masterTID);
     template <typename IT, typename VT>
     static void continue_search(Graph<IT, VT>& graph, 
                     Frontier<IT> & f,
-                    std::vector<Vertex<IT>> & vertexVector);
+                    std::vector<Vertex<IT>> & vertexVector,
+                    std::atomic<IT> & num_enqueued,
+                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                    std::atomic<bool>& found_augmenting_path,
+                    std::atomic<IT> &masterTID);
     template <typename IT, typename VT>
     static void next_iteration(Graph<IT, VT>& graph, 
                     std::atomic<IT> & currentRoot,
@@ -323,7 +329,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             if (!graph.IsMatched(currentRoot)) {
                 //printf("SEARCHING FROM %ld!\n",i);
                 // Your matching logic goes here...
-                start_search(graph,currentRoot,f,vertexVector,num_enqueued,worklists);
+                start_search(graph,currentRoot,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID);
                 // Wait for other threads.
                 if (num_enqueued.load()!=num_dequeued.load()){
                     std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
@@ -366,7 +372,12 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
                     std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
                 }
-                //continue_search(graph,f,vertexVector);
+                continue_search(graph,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID);
+                // If this thread found an AP, send it to master.
+                if (f.TailOfAugmentingPathVertexIndex!=-1){
+
+                }
+                num_dequeued++;
             }
         }
     }
@@ -650,7 +661,9 @@ void Matcher::start_search(Graph<IT, VT>& graph,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
                     std::atomic<IT> & num_enqueued,
-                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists) {
+                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                    std::atomic<bool>& found_augmenting_path,
+                    std::atomic<IT> &masterTID) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
@@ -665,7 +678,7 @@ void Matcher::start_search(Graph<IT, VT>& graph,
 
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
-    while(!stack.empty()){
+    while(!stack.empty() && !found_augmenting_path.load(std::memory_order_relaxed)){
         stackEdge = stack.back();
         stack.pop_back();
         // Necessary because vertices dont know their own index.
@@ -719,7 +732,11 @@ void Matcher::start_search(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 void Matcher::continue_search(Graph<IT, VT>& graph, 
                     Frontier<IT> & f,
-                    std::vector<Vertex<IT>> & vertexVector) {
+                    std::vector<Vertex<IT>> & vertexVector,
+                    std::atomic<IT> & num_enqueued,
+                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                    std::atomic<bool>& found_augmenting_path,
+                    std::atomic<IT> &masterTID) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
@@ -727,7 +744,7 @@ void Matcher::continue_search(Graph<IT, VT>& graph,
     IT &time = f.time;
     std::vector<IT> &stack = f.stack;
     std::vector<Vertex<IT>> &tree = f.tree;
-    while(!stack.empty()){
+    while(!stack.empty() && !found_augmenting_path.load(std::memory_order_release)){
         stackEdge = stack.back();
         stack.pop_back();
         // Necessary because vertices dont know their own index.
