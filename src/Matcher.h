@@ -45,6 +45,8 @@ public:
 template <typename IT, typename VT>
 static void match_persistent_wl3(Graph<IT, VT>& graph,
                                 std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                                moodycamel::ConcurrentQueue<std::vector<IT>> &pathQueue,
+                                std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
                                 std::atomic<IT> & currentRoot,
@@ -65,7 +67,9 @@ private:
     static void start_search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
-                    std::vector<Vertex<IT>> & vertexVector);
+                    std::vector<Vertex<IT>> & vertexVector,
+                    std::atomic<IT> & num_enqueued,
+                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists);
     template <typename IT, typename VT>
     static void continue_search(Graph<IT, VT>& graph, 
                     Frontier<IT> & f,
@@ -184,7 +188,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
                         int num_threads) {
     auto mt_thread_coordination_start = high_resolution_clock::now();
     size_t capacity = 1;
-    moodycamel::ConcurrentQueue<Frontier<IT>> worklist{capacity};
+    moodycamel::ConcurrentQueue<std::vector<IT>> pathQueue{capacity};
     std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> worklists;
     worklists.reserve(num_threads);
     for (int i = 0; i < num_threads; ++i) {
@@ -199,6 +203,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     std::atomic<IT> num_dequeued(0);
     std::atomic<IT> num_spinning(0);
     std::atomic<IT> currentRoot(-1);
+    std::atomic<IT> masterTID(-1);
     std::atomic<bool> found_augmenting_path(false);
     
     //std::vector<std::atomic<bool>> atomicBoolVector(num_threads);
@@ -214,7 +219,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     //spinning.resize(num_threads,false);
     // Access the graph elements as needed
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,
-    worklists,graph,
+    worklists,pathQueue,masterTID,graph,
     currentRoot,found_augmenting_path,
     worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_spinning);
 
@@ -282,6 +287,8 @@ void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                                 std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                                moodycamel::ConcurrentQueue<std::vector<IT>> &pathQueue,
+                                std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
                                 std::atomic<IT> & currentRoot,
@@ -298,6 +305,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
     // first thread to reach here claims master status.
     auto thread_match_start = high_resolution_clock::now();
     if (currentRoot.compare_exchange_strong(expected, desired)) {
+        masterTID.store(tid);
         std::vector<Vertex<IT>> vertexVector;
         auto allocate_start = high_resolution_clock::now();
         vertexVector.reserve(graph.getN());
@@ -315,7 +323,12 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             if (!graph.IsMatched(currentRoot)) {
                 //printf("SEARCHING FROM %ld!\n",i);
                 // Your matching logic goes here...
-                start_search(graph,currentRoot,f,vertexVector);
+                start_search(graph,currentRoot,f,vertexVector,num_enqueued,worklists);
+                // Wait for other threads.
+                if (num_enqueued.load()!=num_dequeued.load()){
+                    std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
+                    worklistCVs[tid].wait(lock, [&] { return num_enqueued.load()!=num_dequeued.load(); });
+                }
                 if (f.TailOfAugmentingPathVertexIndex!=-1){
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     augment(graph,TailOfAugmentingPath,vertexVector,path);
@@ -326,11 +339,6 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                 } else {
                     f.clear();
                     //printf("DIDNT FOUND AP!\n");
-                }
-                // Search pushed work to other threads.
-                if (num_enqueued.load()!=num_dequeued.load()){
-                    std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
-                    worklistCVs[tid].wait(lock, [&] { return num_enqueued.load()!=num_dequeued.load(); });
                 }
             }
         }
@@ -348,6 +356,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)==N; });
             Frontier<IT> f;
             while(worklists[tid].try_dequeue(f)){
+                read_messages[tid]++;
                 // Lazy allocation of vv when thread starts working.
                 if(vertexVector.size()==0){
                     auto allocate_start = high_resolution_clock::now();
@@ -357,6 +366,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
                     std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
                 }
+                //continue_search(graph,f,vertexVector);
             }
         }
     }
@@ -638,7 +648,9 @@ template <typename IT, typename VT>
 void Matcher::start_search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
-                    std::vector<Vertex<IT>> & vertexVector) {
+                    std::vector<Vertex<IT>> & vertexVector,
+                    std::atomic<IT> & num_enqueued,
+                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
