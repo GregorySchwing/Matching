@@ -15,6 +15,7 @@ public:
 
     // Other member functions...
     IT time;
+    IT TailOfAugmentingPathVertexIndex;
     std::vector<IT> stack;
     std::vector<Vertex<IT>> tree;
     size_t capacity;
@@ -22,12 +23,12 @@ public:
 
 // Constructor
 template <typename IT>
-Frontier<IT>::Frontier():time(0) {
+Frontier<IT>::Frontier():time(0),TailOfAugmentingPathVertexIndex(-1) {
 }
 
 // Constructor
 template <typename IT>
-Frontier<IT>::Frontier(size_t _capacity):time(0),capacity(_capacity),stack(_capacity),tree(_capacity) {
+Frontier<IT>::Frontier(size_t _capacity):time(0),TailOfAugmentingPathVertexIndex(-1),capacity(_capacity),stack(_capacity),tree(_capacity) {
     
 }
 
@@ -65,6 +66,7 @@ void Frontier<IT>::updateTree(std::vector<Vertex<IT>> &vertexVector){
 template <typename IT>
 void Frontier<IT>::clear(){
     time = 0;
+    TailOfAugmentingPathVertexIndex = -1;
     stack.clear();
     tree.clear();
 }

@@ -57,12 +57,12 @@ static void match_persistent_wl3(Graph<IT, VT>& graph,
 
 private:
     template <typename IT, typename VT>
-    static Vertex<IT> * search(Graph<IT, VT>& graph, 
+    static void search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
-    static Vertex<IT> * start_search(Graph<IT, VT>& graph, 
+    static void start_search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector);
@@ -119,9 +119,10 @@ void Matcher::match(Graph<IT, VT>& graph) {
         if (!graph.IsMatched(i)) {
             //printf("SEARCHING FROM %ld!\n",i);
             // Your matching logic goes here...
-            TailOfAugmentingPath=search(graph,i,f,vertexVector);
-            // If not a nullptr, I found an AP.
-            if (TailOfAugmentingPath){
+            search(graph,i,f,vertexVector);
+            // If not -1, I found an AP.
+            if (f.TailOfAugmentingPathVertexIndex!=-1){
+                    TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     augment(graph,TailOfAugmentingPath,vertexVector,path);
                     f.reinit(vertexVector);
                     path.clear();
@@ -303,7 +304,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
         auto allocate_end = high_resolution_clock::now();
         auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
-        std::cout << "Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+        std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
         Vertex<IT> * TailOfAugmentingPath;
         Frontier<IT> f;
         std::vector<IT> path;
@@ -314,9 +315,9 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             if (!graph.IsMatched(currentRoot)) {
                 //printf("SEARCHING FROM %ld!\n",i);
                 // Your matching logic goes here...
-                TailOfAugmentingPath=start_search(graph,currentRoot,f,vertexVector);
-                // If not a nullptr, I found an AP.
-                if (TailOfAugmentingPath){
+                start_search(graph,currentRoot,f,vertexVector);
+                if (f.TailOfAugmentingPathVertexIndex!=-1){
+                    TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     augment(graph,TailOfAugmentingPath,vertexVector,path);
                     f.reinit(vertexVector);
                     path.clear();
@@ -339,9 +340,25 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         for (auto & cv:worklistCVs)
             cv.notify_one();
     } else {
-        // If the worklist is empty, wait for a signal
-        std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
-        worklistCVs[tid].wait(lock, [&] { return currentRoot.load(std::memory_order_relaxed)==N; });
+        std::vector<Vertex<IT>> vertexVector;
+        while(currentRoot.load(std::memory_order_relaxed)!=N){
+            std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
+            // If the worklist is empty (size_approx == 0), wait for a signal
+            // If the algorithm is finished (CR==N), return
+            worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)==N; });
+            Frontier<IT> f;
+            while(worklists[tid].try_dequeue(f)){
+                // Lazy allocation of vv when thread starts working.
+                if(vertexVector.size()==0){
+                    auto allocate_start = high_resolution_clock::now();
+                    vertexVector.reserve(graph.getN());
+                    std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
+                    auto allocate_end = high_resolution_clock::now();
+                    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+                    std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+                }
+            }
+        }
     }
 }
 
@@ -546,7 +563,7 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
 }
 
 template <typename IT, typename VT>
-Vertex<IT> * Matcher::search(Graph<IT, VT>& graph, 
+void Matcher::search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector) {
@@ -592,7 +609,8 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
             tree.push_back(*ToBase);
             //graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
-            return ToBase;
+            f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
+            return;
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
@@ -612,12 +630,12 @@ Vertex<IT> * Matcher::search(Graph<IT, VT>& graph,
             Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
-    return nullptr;
+    return;
 }
 
 
 template <typename IT, typename VT>
-Vertex<IT> * Matcher::start_search(Graph<IT, VT>& graph, 
+void Matcher::start_search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector) {
@@ -663,7 +681,8 @@ Vertex<IT> * Matcher::start_search(Graph<IT, VT>& graph,
             tree.push_back(*ToBase);
             //graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
-            return ToBase;
+            f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
+            return;
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
@@ -682,9 +701,8 @@ Vertex<IT> * Matcher::start_search(Graph<IT, VT>& graph,
             Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
-    return nullptr;
+    return;
 }
-
 
 template <typename IT, typename VT>
 Vertex<IT> * Matcher::continue_search(Graph<IT, VT>& graph, 
@@ -709,7 +727,6 @@ Vertex<IT> * Matcher::continue_search(Graph<IT, VT>& graph,
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
         ToBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeTo(graph,stackEdge),vertexVector);  
-
         ToBase = &vertexVector[ToBaseVertexID];
 
         // Edge is between two vertices in the same blossom, continue.
@@ -742,7 +759,6 @@ Vertex<IT> * Matcher::continue_search(Graph<IT, VT>& graph,
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
-            // Not sure if this is wrong or the augment method is wrong
             Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
