@@ -67,7 +67,7 @@ private:
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
-    static Vertex<IT> * continue_search(Graph<IT, VT>& graph, 
+    static void continue_search(Graph<IT, VT>& graph, 
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
@@ -705,14 +705,14 @@ void Matcher::start_search(Graph<IT, VT>& graph,
 }
 
 template <typename IT, typename VT>
-Vertex<IT> * Matcher::continue_search(Graph<IT, VT>& graph, 
+void Matcher::continue_search(Graph<IT, VT>& graph, 
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
-    IT time = 0;
+    IT &time = f.time;
     std::vector<IT> &stack = f.stack;
     std::vector<Vertex<IT>> &tree = f.tree;
     while(!stack.empty()){
@@ -743,7 +743,8 @@ Vertex<IT> * Matcher::continue_search(Graph<IT, VT>& graph,
             tree.push_back(*ToBase);
             //graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
-            return ToBase;
+            f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
+            return;
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
@@ -762,7 +763,7 @@ Vertex<IT> * Matcher::continue_search(Graph<IT, VT>& graph,
             Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
-    return nullptr;
+    return;
 }
 
 template <typename IT, typename VT>
