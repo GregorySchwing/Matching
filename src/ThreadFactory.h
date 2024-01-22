@@ -53,8 +53,7 @@ public:
     static bool create_threads_concurrentqueue_wl(std::vector<std::thread> &threads,
                                                     unsigned num_threads,
                                                     std::vector<size_t> &read_messages,
-                                                    std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                                    moodycamel::ConcurrentQueue<IT> &worklist,
+                                                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                                     Graph<IT, VT> &graph,
                                                     std::atomic<IT> & currentRoot,
                                                     std::atomic<bool>& found_augmenting_path,
@@ -72,8 +71,7 @@ template <typename IT, typename VT>
 bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &threads,
                                                     unsigned num_threads,
                                                     std::vector<size_t> &read_messages,
-                                                    std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                                    moodycamel::ConcurrentQueue<IT> &worklist,
+                                                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                                     Graph<IT, VT> &graph,
                                                     std::atomic<IT> & currentRoot,
                                                     std::atomic<bool>& found_augmenting_path,
@@ -87,7 +85,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
     for (unsigned i = 0; i < num_threads; ++i) {
         //threads[i] = std::thread(&Matcher::hello_world, i);
         threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl3<IT,VT>(graph,
-          worklists,worklist,
+          worklists,
           read_messages,found_augmenting_path,
           currentRoot,
           worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_spinning); } );

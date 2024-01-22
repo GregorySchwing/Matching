@@ -5,6 +5,7 @@
 #include <list>
 #include <Vertex.h>
 #include <Stack.h>
+#include <Frontier.h>
 
 
 template <typename T>
@@ -21,6 +22,8 @@ BENCHMARK_TEMPLATE(BM_Push, std::deque<int>);
 
 BENCHMARK_TEMPLATE(BM_Push, Stack<Vertex<int>>);
 BENCHMARK_TEMPLATE(BM_Push, std::vector<Vertex<int>>);
+BENCHMARK_TEMPLATE(BM_Push, Frontier<int>);
+
 BENCHMARK_TEMPLATE(BM_Push, std::deque<Vertex<int>>);
 BENCHMARK_TEMPLATE(BM_Push, std::list<Vertex<int>>);
 //BENCHMARK_TEMPLATE(BM_Push, std::unordered_set<Vertex<int>>);
