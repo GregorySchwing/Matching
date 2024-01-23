@@ -14,6 +14,7 @@
 #include "Frontier.h"
 #include "Statistics.h"
 #include "concurrentqueue.h"
+#include <limits>
 
 class Matcher {
 public:
@@ -311,7 +312,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                                 std::atomic<IT> & num_contracting_blossoms,
                                 int deferral_threshold) {
     const size_t N = graph.getN();
-
+    const size_t nworkers = worklists.size();
     IT expected = -1;
     IT desired = 0;
     // first thread to reach here claims master status.
@@ -333,12 +334,23 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         auto search_start = high_resolution_clock::now();
         for (; currentRoot < N; ++currentRoot) {
             if (!graph.IsMatched(currentRoot)) {
-                // Your matching logic goes here...
-                if(start_search(graph,currentRoot,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID,deferral_threshold))
-                {}else{
+                // If I didn't finish, give the state onto another worker.
+                if(!start_search(graph,currentRoot,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID,deferral_threshold))
+                {
                     numDeferred++;
-                    f.reinit(vertexVector);
-                    f.clear();
+                    int workerID = tid;
+                    int minWork = std::numeric_limits<int>::max();
+                    int minWorkID = tid;
+
+                    do {
+                        workerID++;
+                        if(worklists[workerID%nworkers].size_approx()<minWork){
+                            minWorkID=workerID;
+                            minWork=worklists[workerID%nworkers].size_approx();
+                            if (minWork == 0) break;
+                        }
+                    } while (workerID%nworkers != tid);
+                    worklists[minWorkID].enqueue(f);
                 }
                 if (f.TailOfAugmentingPathVertexIndex!=-1){
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
