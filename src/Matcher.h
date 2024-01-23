@@ -809,6 +809,10 @@ void Matcher::continue_search(Graph<IT, VT>& graph,
             nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
             nextVertex = &vertexVector[nextVertexIndex];
             nextVertex->AgeField=time++;
+            // For safe concurrent blossom contraction.
+            nextVertex->MatchField = matchedEdge;
+            // For safe concurrent blossom contraction.
+
             tree.push_back(*nextVertex);
 
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
