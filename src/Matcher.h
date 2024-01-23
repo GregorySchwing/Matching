@@ -315,11 +315,11 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
     const size_t nworkers = worklists.size();
     IT expected = -1;
     IT desired = 0;
+    std::vector<Vertex<IT>> vertexVector;
     // first thread to reach here claims master status.
     auto thread_match_start = high_resolution_clock::now();
     if (currentRoot.compare_exchange_strong(expected, desired)) {
         masterTID.store(tid);
-        std::vector<Vertex<IT>> vertexVector;
         auto allocate_start = high_resolution_clock::now();
         vertexVector.reserve(graph.getN());
         std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
@@ -372,37 +372,36 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
 
         for (auto & cv:worklistCVs)
             cv.notify_one();
-    } else {
-        std::vector<Vertex<IT>> vertexVector;
-        while(currentRoot.load(std::memory_order_relaxed)!=N){
-            std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
-            // If the worklist is empty (size_approx == 0), wait for a signal
-            // If the algorithm is finished (CR==N), return
-            worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)==N; });
-            Frontier<IT> f;
-            while(worklists[tid].try_dequeue(f)){
-                read_messages[tid]++;
-                // Lazy allocation of vv when thread starts working.
-                if(vertexVector.size()==0){
-                    auto allocate_start = high_resolution_clock::now();
-                    vertexVector.reserve(graph.getN());
-                    std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
-                    auto allocate_end = high_resolution_clock::now();
-                    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
-                    std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
-                }
-                continue_search(graph,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID,num_contracting_blossoms);
-                // If this thread found an AP, send it to master.
-                if (f.TailOfAugmentingPathVertexIndex!=-1){
-                    // Signal other searchers to gracefully exit.
-                    bool expected = false;
-                    // First to find AP, extract path.
-                    if(found_augmenting_path.compare_exchange_strong(expected,true)){
+    }
+    while(worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)!=N){
+        std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
+        // If the worklist is empty (size_approx == 0), wait for a signal
+        // If the algorithm is finished (CR==N), return
+        worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)==N; });
+        Frontier<IT> f;
+        while(worklists[tid].try_dequeue(f)){
+            read_messages[tid]++;
+            // Lazy allocation of vv when thread starts working.
+            if(vertexVector.capacity()==0){
+                auto allocate_start = high_resolution_clock::now();
+                vertexVector.reserve(graph.getN());
+                std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
+                auto allocate_end = high_resolution_clock::now();
+                auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+                std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
 
-                    }
-                }
-                num_dequeued++;
             }
+            continue_search(graph,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID,num_contracting_blossoms);
+            // If this thread found an AP, send it to master.
+            if (f.TailOfAugmentingPathVertexIndex!=-1){
+                // Signal other searchers to gracefully exit.
+                bool expected = false;
+                // First to find AP, extract path.
+                if(found_augmenting_path.compare_exchange_strong(expected,true)){
+
+                }
+            }
+            num_dequeued++;
         }
     }
 }
