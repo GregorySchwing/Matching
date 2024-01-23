@@ -10,6 +10,7 @@
 using namespace std::chrono;
 #include <list>
 #include <cxxopts.hpp>
+#include <limits>
 typedef int32_t INDEX_TYPE;
 
 int main(int argc, char **argv) {
@@ -18,19 +19,28 @@ int main(int argc, char **argv) {
         ("file", "Input file", cxxopts::value<std::string>())
         ("iterations", "Number of iterations", cxxopts::value<int>()->default_value("1"))
         ("threads", "Number of threads", cxxopts::value<int>()->default_value("1"))
-        ("execution", "Execution mode (0 for serial, 1 for parallel)", cxxopts::value<int>()->default_value("0"));  // Updated to accept an integer
+        ("execution", "Execution mode (0 for serial, 1 for parallel)", cxxopts::value<int>()->default_value("0"))  // Updated to accept an integer
+        ("deferral_threshold", "Stack depth at which deferral is initiated. Default: 'INF' for infinity.", cxxopts::value<int>()->default_value(std::to_string(std::numeric_limits<int>::max())));  // Updated to accept an integer
 
-    options.parse_positional({"file", "iterations", "threads", "execution"});
+    options.parse_positional({"file", "iterations", "threads", "execution", "deferral_threshold"});
     auto result = options.parse(argc, argv);
-
+    int deferral_threshold;
     if (!result.count("file")) {
-        std::cout << "Usage: " << argv[0] << " <file>.mtx <num_iterations> <num_threads> <0 for serial, 1 for parallel>" << '\n';
+        std::cout << "Usage: " << argv[0] << " <file>.mtx <num_iterations> <num_threads> <0 for serial, 1 for parallel> <deferral_threshold>" << '\n';
         return 0;
     } else {
         std::cout << "READING " << result["file"].as<std::string>() << '\n';
         std::cout << "Number of iterations: " << result["iterations"].as<int>() << '\n';
         std::cout << "Number of threads: " << result["threads"].as<int>() << '\n';
         std::cout << "Execution mode: " << result["execution"].as<int>() << " (0 for serial, 1 for parallel)" << '\n';
+
+        // Check if the deferral_threshold is set by the user
+        deferral_threshold = result["deferral_threshold"].as<int>();
+        if (deferral_threshold == std::numeric_limits<int>::max()) {
+            std::cout << "Deferral threshold: INF (do not defer)" << '\n';
+        } else {
+            std::cout << "Deferral threshold: " << deferral_threshold << '\n';
+        }
     }
 
     std::filesystem::path in_path{result["file"].as<std::string>()};
@@ -58,7 +68,7 @@ int main(int argc, char **argv) {
         }
         auto match_start = high_resolution_clock::now();
         if (execution){
-            Matcher::match_wl<INDEX_TYPE, std::string>(G,num_threads);
+            Matcher::match_wl<INDEX_TYPE, std::string>(G,num_threads,deferral_threshold);
         } else {
             Matcher::match<INDEX_TYPE, std::string>(G);
         }

@@ -23,7 +23,8 @@ public:
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
     template <typename IT, typename VT>
     static void match_wl(Graph<IT, VT>& graph, 
-                        int num_threads);
+                        int num_threads,
+                        int deferral_threshold);
     template <typename IT, typename VT>
     static void match_persistent_wl(Graph<IT, VT> &graph,
                                     moodycamel::ConcurrentQueue<IT> &worklist,
@@ -55,7 +56,8 @@ static void match_persistent_wl3(Graph<IT, VT>& graph,
                                 int tid,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms);
+                                std::atomic<IT> & num_contracting_blossoms,
+                                int deferral_threshold);
 
 private:
     template <typename IT, typename VT>
@@ -64,14 +66,15 @@ private:
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector);
     template <typename IT, typename VT>
-    static void start_search(Graph<IT, VT>& graph, 
+    static bool start_search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
                     std::atomic<IT> & num_enqueued,
                     std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                     std::atomic<bool>& found_augmenting_path,
-                    std::atomic<IT> &masterTID);
+                    std::atomic<IT> &masterTID,
+                    int deferral_threshold);
     template <typename IT, typename VT>
     static void continue_search(Graph<IT, VT>& graph, 
                     Frontier<IT> & f,
@@ -192,7 +195,8 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 #include "ThreadFactory.h"
 template <typename IT, typename VT>
 void Matcher::match_wl(Graph<IT, VT>& graph, 
-                        int num_threads) {
+                        int num_threads,
+                        int deferral_threshold) {
     auto mt_thread_coordination_start = high_resolution_clock::now();
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<std::vector<IT>> pathQueue{capacity};
@@ -228,7 +232,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,
     worklists,pathQueue,masterTID,graph,
     currentRoot,found_augmenting_path,
-    worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_contracting_blossoms);
+    worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_contracting_blossoms,deferral_threshold);
 
     auto join_thread_start = high_resolution_clock::now();
     for (auto& t : workers) {
@@ -304,7 +308,8 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                                 int tid,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms) {
+                                std::atomic<IT> & num_contracting_blossoms,
+                                int deferral_threshold) {
     const size_t N = graph.getN();
 
     IT expected = -1;
@@ -324,11 +329,17 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         Frontier<IT> f;
         std::vector<IT> path;
         //const size_t N = 5;
+        int numDeferred = 0;
         auto search_start = high_resolution_clock::now();
         for (; currentRoot < N; ++currentRoot) {
             if (!graph.IsMatched(currentRoot)) {
                 // Your matching logic goes here...
-                start_search(graph,currentRoot,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID);
+                if(start_search(graph,currentRoot,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID,deferral_threshold))
+                {}else{
+                    numDeferred++;
+                    f.reinit(vertexVector);
+                    f.clear();
+                }
                 if (f.TailOfAugmentingPathVertexIndex!=-1){
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     augment(graph,TailOfAugmentingPath,vertexVector,path);
@@ -343,6 +354,8 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         auto search_end = high_resolution_clock::now();
         auto duration_search = duration_cast<seconds>(search_end - search_start);
         std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
+        std::cout << "Thread "<< tid << " number deferred: "<< numDeferred << '\n';
+
         for (auto & cv:worklistCVs)
             cv.notify_one();
     } else {
@@ -651,16 +664,17 @@ void Matcher::search(Graph<IT, VT>& graph,
     return;
 }
 
-
+// Returns true if a decision was made.
 template <typename IT, typename VT>
-void Matcher::start_search(Graph<IT, VT>& graph, 
+bool Matcher::start_search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
                     std::atomic<IT> & num_enqueued,
                     std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                     std::atomic<bool>& found_augmenting_path,
-                    std::atomic<IT> &masterTID) {
+                    std::atomic<IT> &masterTID,
+                    int deferral_threshold) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
@@ -686,7 +700,6 @@ void Matcher::start_search(Graph<IT, VT>& graph,
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
         ToBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeTo(graph,stackEdge),vertexVector);  
-
         ToBase = &vertexVector[ToBaseVertexID];
 
         // Edge is between two vertices in the same blossom, continue.
@@ -704,7 +717,7 @@ void Matcher::start_search(Graph<IT, VT>& graph,
             //graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
             f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
-            return;
+            return true;
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
@@ -726,8 +739,12 @@ void Matcher::start_search(Graph<IT, VT>& graph,
             // Shrink Blossoms
             Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
+        
+        if (stack.size()>deferral_threshold){
+            return false;
+        }
     }
-    return;
+    return true;
 }
 
 template <typename IT, typename VT>
