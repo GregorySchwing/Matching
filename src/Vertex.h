@@ -9,6 +9,8 @@ public:
     IT TreeField;
     IT BridgeField;
     IT ShoreField;
+    // For safe parallel execution.
+    IT MatchField;
     IT AgeField;
     // For Reinitializing DSU Data
     IT LabelField;
@@ -22,6 +24,7 @@ public:
         : TreeField(-1),
           BridgeField(-1), 
           ShoreField(-1), 
+          MatchField(-1),
           AgeField(-1), 
           LabelField(Label),
           LinkField(Label),
@@ -34,6 +37,7 @@ public:
         : TreeField(other.TreeField), 
           BridgeField(other.BridgeField),
           ShoreField(other.ShoreField), 
+          MatchField(other.MatchField),
           AgeField(other.AgeField),
           LabelField(other.LabelField),
           LinkField(other.LinkField),
@@ -46,6 +50,7 @@ public:
     Vertex() : TreeField(-1),
           BridgeField(-1), 
           ShoreField(-1), 
+          MatchField(-1),
           AgeField(-1),
           LabelField(-1),
           LinkField(-1),
@@ -73,6 +78,7 @@ public:
         std::cout 
                   << "TreeField: " << TreeField << ", "
                   << "BridgeField: " << BridgeField << ", "
+                  << "MatchField: " << MatchField << ", "
                   << "ShoreField: " << ShoreField << ", "
                   << "AgeField: " << AgeField << ", "
                   << "LabelField: " << LabelField << ", "

@@ -324,24 +324,11 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         Frontier<IT> f;
         std::vector<IT> path;
         //const size_t N = 5;
-        IT lastIterNumEnqueued;
-        lastIterNumEnqueued = num_enqueued.load();
         auto search_start = high_resolution_clock::now();
         for (; currentRoot < N; ++currentRoot) {
             if (!graph.IsMatched(currentRoot)) {
                 // Your matching logic goes here...
-                found_augmenting_path.store(false);
                 start_search(graph,currentRoot,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID);
-                if (f.TailOfAugmentingPathVertexIndex!=-1){
-                    // Signal other searchers to gracefully exit.
-                    found_augmenting_path.store(true);
-                }
-                //Wait for searchers to return;
-                if (num_enqueued.load()!=num_dequeued.load()){
-                    std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
-                    worklistCVs[tid].wait(lock, [&] { return num_enqueued.load()!=num_dequeued.load(); });
-                }
-
                 if (f.TailOfAugmentingPathVertexIndex!=-1){
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     augment(graph,TailOfAugmentingPath,vertexVector,path);
@@ -349,12 +336,6 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                     path.clear();
                     f.clear();
                 } else {
-                    // Avoidable if no searchers were spawned.
-                    // Wait for other threads.
-                    if (lastIterNumEnqueued!=num_enqueued.load()){
-                        f.reinit(vertexVector);
-                        lastIterNumEnqueued = num_enqueued.load();
-                    }
                     f.clear();
                 }
             }
@@ -687,14 +668,14 @@ void Matcher::start_search(Graph<IT, VT>& graph,
     IT &time = f.time;
     std::vector<IT> &stack = f.stack;
     std::vector<Vertex<IT>> &tree = f.tree;
-    //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
     nextVertex = &vertexVector[V_index];
     nextVertex->AgeField=time++;
     tree.push_back(*nextVertex);
 
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
-    while(!stack.empty() && !found_augmenting_path.load(std::memory_order_relaxed)){
+    //while(!stack.empty() && !found_augmenting_path.load(std::memory_order_relaxed)){
+    while(!stack.empty()){
         stackEdge = stack.back();
         stack.pop_back();
         // Necessary because vertices dont know their own index.
