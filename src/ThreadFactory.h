@@ -63,7 +63,7 @@ public:
                                                     std::vector<std::condition_variable> &worklistCVs,
                                                     std::atomic<IT> & num_enqueued,
                                                     std::atomic<IT> & num_dequeued,
-                                                    std::atomic<IT> & num_contracting_blossoms,
+                                                    std::atomic<IT> & num_augmentations,
                                                     int deferral_threshold);
 
 };
@@ -84,7 +84,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
                                                     std::vector<std::condition_variable> &worklistCVs,
                                                     std::atomic<IT> & num_enqueued,
                                                     std::atomic<IT> & num_dequeued,
-                                                    std::atomic<IT> & num_contracting_blossoms,
+                                                    std::atomic<IT> & num_augmentations,
                                                     int deferral_threshold) {
     // Works, infers template types from args
     //Matcher::search(graph,0,*(frontiers[0]));
@@ -94,7 +94,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
           worklists,pathQueue,masterTID,
           read_messages,found_augmenting_path,
           currentRoot,
-          worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_contracting_blossoms,deferral_threshold); } );
+          worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_augmentations,deferral_threshold); } );
 
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
         // only CPU i as set.

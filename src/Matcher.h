@@ -42,7 +42,7 @@ public:
                                     int tid,
                                     std::atomic<IT> & num_enqueued,
                                     std::atomic<IT> & num_dequeued,
-                                    std::atomic<IT> & num_contracting_blossoms);
+                                    std::atomic<IT> & num_augmentations);
 
 template <typename IT, typename VT>
 static void match_persistent_wl3(Graph<IT, VT>& graph,
@@ -57,7 +57,7 @@ static void match_persistent_wl3(Graph<IT, VT>& graph,
                                 int tid,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms,
+                                std::atomic<IT> & num_augmentations,
                                 int deferral_threshold);
 
 private:
@@ -84,7 +84,7 @@ private:
                     std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                     std::atomic<bool>& found_augmenting_path,
                     std::atomic<IT> &masterTID,
-                    std::atomic<IT> &num_contracting_blossoms);
+                    std::atomic<IT> &num_augmentations);
     template <typename IT, typename VT>
     static void next_iteration(Graph<IT, VT>& graph, 
                     std::atomic<IT> & currentRoot,
@@ -213,7 +213,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
 
     std::atomic<IT> num_enqueued(0);
     std::atomic<IT> num_dequeued(0);
-    std::atomic<IT> num_contracting_blossoms(0);
+    std::atomic<IT> num_augmentations(0);
     std::atomic<IT> currentRoot(-1);
     std::atomic<IT> masterTID(-1);
     std::atomic<bool> found_augmenting_path(false);
@@ -233,7 +233,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,
     worklists,pathQueue,masterTID,graph,
     currentRoot,found_augmenting_path,
-    worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_contracting_blossoms,deferral_threshold);
+    worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_augmentations,deferral_threshold);
 
     auto join_thread_start = high_resolution_clock::now();
     for (auto& t : workers) {
@@ -245,7 +245,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
 
     std::cout << "NUM ENQUEUED " << num_enqueued.load() << '\n';
     std::cout << "NUM DEQUEUED " << num_dequeued.load() << '\n';
-    std::cout << "NUM SPINNING " << num_contracting_blossoms.load() << '\n';
+    std::cout << "NUM AUGMENTATIONS " << num_augmentations.load() << '\n';
 
     size_t tot_read_messages = 0;
     int ni = 0;
@@ -309,7 +309,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                                 int tid,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms,
+                                std::atomic<IT> & num_augmentations,
                                 int deferral_threshold) {
     const size_t N = graph.getN();
     const size_t nworkers = worklists.size();
@@ -357,6 +357,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                 if (f.TailOfAugmentingPathVertexIndex!=-1){
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     augment(graph,TailOfAugmentingPath,vertexVector,path);
+                    num_augmentations++;
                     f.reinit(vertexVector);
                     path.clear();
                     f.clear();
@@ -391,9 +392,21 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                 std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
 
             }
-            continue_search(graph,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID,num_contracting_blossoms);
+            continue_search(graph,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID,num_augmentations);
             if (f.TailOfAugmentingPathVertexIndex==-1){
-                
+                IT b4, af;
+                bool still_valid;
+                do{
+                    b4 = num_augmentations.load();
+                    still_valid = f.verifyTree(graph.matching,vertexVector);
+                    af = num_augmentations.load();
+                }while(b4!=af && still_valid);
+                if(still_valid){
+                    // You can kill all these vertices :)
+                } else {
+                    // Need to restart search.
+
+                }
             }
             f.reinit(vertexVector);
             f.clear();
@@ -416,7 +429,7 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                                 int tid,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms) {
+                                std::atomic<IT> & num_augmentations) {
 
 
         std::vector<Vertex<IT>> vertexVector;
@@ -473,8 +486,8 @@ void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
                 augment(graph,TailOfAugmentingPath,f);
             }
 
-            //num_contracting_blossoms++;
-            if (1+num_contracting_blossoms.fetch_add(1) == num_dequeued.load() &&
+            //num_augmentations++;
+            if (1+num_augmentations.fetch_add(1) == num_dequeued.load() &&
                 num_dequeued.load() == num_enqueued.load()) {
                 found_augmenting_path.store(false);
                 next_iteration(graph,currentRoot,num_enqueued,tid,worklists);
@@ -765,7 +778,7 @@ void Matcher::continue_search(Graph<IT, VT>& graph,
                     std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                     std::atomic<bool>& found_augmenting_path,
                     std::atomic<IT> &masterTID,
-                    std::atomic<IT> &num_contracting_blossoms) {
+                    std::atomic<IT> &num_augmentations) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;

@@ -12,7 +12,7 @@ public:
     void reinit(std::vector<Vertex<IT>> &vertexVector);
     void updateTree(std::vector<Vertex<IT>> &vertexVector);
     void clear();
-
+    bool verifyTree(std::vector<std::atomic<IT>>& matching,std::vector<Vertex<IT>> &vertexVector);
     // Other member functions...
     IT time;
     IT TailOfAugmentingPathVertexIndex;
@@ -60,6 +60,19 @@ void Frontier<IT>::updateTree(std::vector<Vertex<IT>> &vertexVector){
         V.GroupRootField=vertexVector[V.LabelField].GroupRootField;
         V.SizeField=vertexVector[V.LabelField].SizeField;
     }
+}
+
+
+// Constructor
+template <typename IT>
+bool Frontier<IT>::verifyTree(std::vector<std::atomic<IT>>& matching,std::vector<Vertex<IT>> &vertexVector){      
+    bool valid = true;
+    for (auto &V : tree) {
+        valid &= matching[V.LabelField].load()==vertexVector[V.LabelField].MatchField;
+        if (!valid)
+            return false;
+    }
+    return true;
 }
 
 // Constructor
