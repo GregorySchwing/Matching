@@ -24,7 +24,27 @@ int main(int argc, char **argv) {
 
     options.parse_positional({"file", "iterations", "threads", "execution", "deferral_threshold"});
     auto result = options.parse(argc, argv);
-    int deferral_threshold;
+
+    // Check if 'threads' is a positive integer
+    if (result["threads"].as<int>() <= 0) {
+        std::cerr << "Error: 'threads' must be a positive integer." << std::endl;
+        return 1;
+    }
+
+    // Check if 'execution' is 0 or 1
+    int executionValue = result["execution"].as<int>();
+    if (executionValue != 0 && executionValue != 1) {
+        std::cerr << "Error: 'execution' must be 0 or 1." << std::endl;
+        return 1;
+    }
+
+    // Check if 'deferral_threshold' is a positive integer
+    int deferral_threshold = result["deferral_threshold"].as<int>();
+    if (deferral_threshold <= 0) {
+        std::cerr << "Error: 'deferral_threshold' must be a positive integer." << std::endl;
+        return 1;
+    }
+
     if (!result.count("file")) {
         std::cout << "Usage: " << argv[0] << " <file>.mtx <num_iterations> <num_threads> <0 for serial, 1 for parallel> <deferral_threshold>" << '\n';
         return 0;
