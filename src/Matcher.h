@@ -392,6 +392,9 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
 
             }
             continue_search(graph,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID,num_contracting_blossoms);
+            if (f.TailOfAugmentingPathVertexIndex==-1){
+                
+            }
             f.reinit(vertexVector);
             f.clear();
             // If this thread found an AP, send it to master.
