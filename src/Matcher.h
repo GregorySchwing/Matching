@@ -345,12 +345,14 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                     do {
                         workerID++;
                         if(worklists[workerID%nworkers].size_approx()<minWork){
-                            minWorkID=workerID;
+                            minWorkID=workerID%nworkers;
                             minWork=worklists[workerID%nworkers].size_approx();
                             if (minWork == 0) break;
                         }
                     } while (workerID%nworkers != tid);
                     worklists[minWorkID].enqueue(f);
+                    f.reinit(vertexVector);
+                    f.clear();
                 }
                 if (f.TailOfAugmentingPathVertexIndex!=-1){
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
