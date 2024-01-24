@@ -616,6 +616,8 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     return nullptr;
 }
 
+
+// Returns true if a decision was made.
 template <typename IT, typename VT>
 void Matcher::search(Graph<IT, VT>& graph, 
                     const size_t V_index,
@@ -628,13 +630,13 @@ void Matcher::search(Graph<IT, VT>& graph,
     IT &time = f.time;
     std::vector<IT> &stack = f.stack;
     std::vector<Vertex<IT>> &tree = f.tree;
-    //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
     nextVertex = &vertexVector[V_index];
     nextVertex->AgeField=time++;
     tree.push_back(*nextVertex);
 
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
+    //while(!stack.empty() && !found_augmenting_path.load(std::memory_order_relaxed)){
     while(!stack.empty()){
         stackEdge = stack.back();
         stack.pop_back();
@@ -646,7 +648,6 @@ void Matcher::search(Graph<IT, VT>& graph,
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
         ToBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeTo(graph,stackEdge),vertexVector);  
-
         ToBase = &vertexVector[ToBaseVertexID];
 
         // Edge is between two vertices in the same blossom, continue.
@@ -674,13 +675,16 @@ void Matcher::search(Graph<IT, VT>& graph,
             nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
             nextVertex = &vertexVector[nextVertexIndex];
             nextVertex->AgeField=time++;
+            // For safe concurrent blossom contraction.
+            nextVertex->MatchField = matchedEdge;
+            // For safe concurrent blossom contraction.
+
             tree.push_back(*nextVertex);
 
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
 
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
-            // Not sure if this is wrong or the augment method is wrong
             Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
