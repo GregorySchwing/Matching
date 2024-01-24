@@ -122,6 +122,7 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
         treeEdge = EdgeToVertex->TreeField;
         if (treeEdge < 0){
             printf("MASSIVE ERROR!!!\n");
+            exit(1);
         }
         if (!Found){
             Found = Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,EdgeToVertexID,stack,matchedEdge,treeEdge);
@@ -237,6 +238,7 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
         treeEdge = EdgeToVertex->TreeField;
         if (treeEdge < 0){
             printf("MASSIVE ERROR!!!\n");
+            exit(1);
         }
         if (!Found){
             Found = Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,EdgeToVertexID,stack,matchedEdge,treeEdge);

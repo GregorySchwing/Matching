@@ -377,8 +377,8 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
     while(worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)!=N){
         std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
         // If the worklist is empty (size_approx == 0), wait for a signal
-        // If the algorithm is finished (CR==N), return
-        worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)==N; });
+        // If the algorithm is finished (CR==N), start on deferreds.
+        worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() && currentRoot.load(std::memory_order_relaxed)==N; });
         Frontier<IT> f;
         while(worklists[tid].try_dequeue(f)){
             read_messages[tid]++;
@@ -752,9 +752,12 @@ bool Matcher::start_search(Graph<IT, VT>& graph,
             tree.push_back(*ToBase);
 
             matchedEdge=graph.GetMatchField(ToBaseVertexID);
+            ToBase->MatchField = matchedEdge;
+
             nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
-            nextVertex = &vertexVector[nextVertexIndex];
+            nextVertex = &vertexVector[nextVertexIndex];            
             nextVertex->AgeField=time++;
+
             // For safe concurrent blossom contraction.
             nextVertex->MatchField = matchedEdge;
             // For safe concurrent blossom contraction.
@@ -791,7 +794,7 @@ void Matcher::continue_search(Graph<IT, VT>& graph,
     IT &time = f.time;
     std::vector<IT> &stack = f.stack;
     std::vector<Vertex<IT>> &tree = f.tree;
-    while(!stack.empty() && !found_augmenting_path.load(std::memory_order_release)){
+    while(!stack.empty()){
         stackEdge = stack.back();
         stack.pop_back();
         // Necessary because vertices dont know their own index.
@@ -827,8 +830,14 @@ void Matcher::continue_search(Graph<IT, VT>& graph,
             tree.push_back(*ToBase);
 
             matchedEdge=graph.GetMatchField(ToBaseVertexID);
+            ToBase->MatchField = matchedEdge;
+            
             nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
             nextVertex = &vertexVector[nextVertexIndex];
+            if(nextVertex->AgeField>-1){
+                printf("STALE VALUE OF MATCHING\n");
+                exit(1);
+            }
             nextVertex->AgeField=time++;
             // For safe concurrent blossom contraction.
             nextVertex->MatchField = matchedEdge;
