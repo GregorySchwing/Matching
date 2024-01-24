@@ -223,7 +223,10 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
         // matchedEdge = graph.GetMatchField(FromBaseID);
         // For safe concurrent blossom contraction.
         matchedEdge = vertexVector[FromBaseID].MatchField;
-
+        if (matchedEdge != graph.GetMatchField(FromBaseID)){
+            printf("%d != %d\n",matchedEdge,graph.GetMatchField(FromBaseID));
+            exit(1);
+        }
         // W = Other(M, B);
         EdgeToVertexID = Graph<IT,VT>::Other(graph,matchedEdge,FromBaseID);
         EdgeToVertex = &vertexVector[EdgeToVertexID];

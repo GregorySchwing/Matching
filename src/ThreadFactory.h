@@ -54,6 +54,7 @@ public:
                                                     unsigned num_threads,
                                                     std::vector<size_t> &read_messages,
                                                     std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                                                    std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &root_lists,
                                                     moodycamel::ConcurrentQueue<std::vector<IT>> &pathQueue,
                                                     std::atomic<IT> &masterTID,
                                                     Graph<IT, VT> &graph,
@@ -75,6 +76,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
                                                     unsigned num_threads,
                                                     std::vector<size_t> &read_messages,
                                                     std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                                                    std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &root_lists,
                                                     moodycamel::ConcurrentQueue<std::vector<IT>> &pathQueue,
                                                     std::atomic<IT> &masterTID,
                                                     Graph<IT, VT> &graph,
@@ -91,7 +93,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
     for (unsigned i = 0; i < num_threads; ++i) {
         //threads[i] = std::thread(&Matcher::hello_world, i);
         threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl3<IT,VT>(graph,
-          worklists,pathQueue,masterTID,
+          worklists,root_lists,pathQueue,masterTID,
           read_messages,found_augmenting_path,
           currentRoot,
           worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_augmentations,deferral_threshold); } );
