@@ -669,6 +669,7 @@ void Matcher::search(Graph<IT, VT>& graph,
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
+            ToBase->MatchField=graph.GetMatchField(ToBaseVertexID);
             tree.push_back(*ToBase);
 
             matchedEdge=graph.GetMatchField(ToBaseVertexID);
@@ -879,6 +880,12 @@ void Matcher::augment(Graph<IT, VT>& graph,
         //V = Other(Match(B), B);
         //ptrdiff_t nextVertexBase_VertexID = nextVertexBase - &vertexVector[0];
         auto nextVertexBase_VertexID = nextVertexBase->LabelField;
+        if (graph.IsMatched(nextVertexBase_VertexID) != 
+            vertexVector[nextVertexBase_VertexID].MatchField>-1){
+            printf("DISAGREEMENT!!! %d %d %d %d\n",nextVertexBase_VertexID,graph.IsMatched(nextVertexBase_VertexID),
+            nextVertexBase_VertexID,vertexVector[nextVertexBase_VertexID].MatchField);
+            exit(1);
+        }
 
         if (graph.IsMatched(nextVertexBase_VertexID))
             TailOfAugmentingPath = &vertexVector[Graph<IT,VT>::Other(graph,graph.GetMatchField(nextVertexBase_VertexID),nextVertexBase_VertexID)];
@@ -913,6 +920,14 @@ void Matcher::pathThroughBlossom(Graph<IT, VT>& graph,
             // Path(Shore(V), Other(Match(V), V), P);
             //ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
             auto TailOfAugmentingPath_VertexID = TailOfAugmentingPath->LabelField;
+            
+            if (graph.GetMatchField(TailOfAugmentingPath_VertexID) != 
+                vertexVector[TailOfAugmentingPath_VertexID].MatchField){
+                printf("DISAGREEMENT!!! %d %d %d %d\n",TailOfAugmentingPath_VertexID,graph.GetMatchField(TailOfAugmentingPath_VertexID),
+                TailOfAugmentingPath_VertexID,vertexVector[TailOfAugmentingPath_VertexID].MatchField);
+                exit(1);
+            }
+            
             pathThroughBlossom(graph,
                                 &vertexVector[TailOfAugmentingPath->ShoreField],
                                 &vertexVector[Graph<IT,VT>::Other(graph,graph.GetMatchField(TailOfAugmentingPath_VertexID),TailOfAugmentingPath_VertexID)],
@@ -933,6 +948,14 @@ void Matcher::pathThroughBlossom(Graph<IT, VT>& graph,
             //W = Other(Match(V), V);
             //ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
             auto TailOfAugmentingPath_VertexID = TailOfAugmentingPath->LabelField;
+            
+            if (graph.GetMatchField(TailOfAugmentingPath_VertexID) != 
+                vertexVector[TailOfAugmentingPath_VertexID].MatchField){
+                printf("DISAGREEMENT!!! %d %d %d %d\n",TailOfAugmentingPath_VertexID,graph.GetMatchField(TailOfAugmentingPath_VertexID),
+                TailOfAugmentingPath_VertexID,vertexVector[TailOfAugmentingPath_VertexID].MatchField);
+                exit(1);
+            }
+            
             nextVertex=&vertexVector[Graph<IT,VT>::Other(graph,graph.GetMatchField(TailOfAugmentingPath_VertexID),TailOfAugmentingPath_VertexID)];
             
             //ListPut(Tree(W), P);
