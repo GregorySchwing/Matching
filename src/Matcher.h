@@ -862,7 +862,8 @@ void Matcher::augment(Graph<IT, VT>& graph,
         path.push_back(edge);
 
         //W = Other(Tree(V), V);
-        ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+        //ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+        auto TailOfAugmentingPath_VertexID = TailOfAugmentingPath->LabelField;
         auto nextVertexID = Graph<IT,VT>::Other(graph,edge,TailOfAugmentingPath_VertexID);
         nextVertex = &vertexVector[nextVertexID];
 
@@ -876,7 +877,9 @@ void Matcher::augment(Graph<IT, VT>& graph,
         pathThroughBlossom(graph,nextVertex,nextVertexBase,vertexVector,path);
 
         //V = Other(Match(B), B);
-        ptrdiff_t nextVertexBase_VertexID = nextVertexBase - &vertexVector[0];
+        //ptrdiff_t nextVertexBase_VertexID = nextVertexBase - &vertexVector[0];
+        auto nextVertexBase_VertexID = nextVertexBase->LabelField;
+
         if (graph.IsMatched(nextVertexBase_VertexID))
             TailOfAugmentingPath = &vertexVector[Graph<IT,VT>::Other(graph,graph.GetMatchField(nextVertexBase_VertexID),nextVertexBase_VertexID)];
         else 
@@ -908,7 +911,8 @@ void Matcher::pathThroughBlossom(Graph<IT, VT>& graph,
         if (TailOfAugmentingPath->IsOdd())
         {
             // Path(Shore(V), Other(Match(V), V), P);
-            ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            //ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            auto TailOfAugmentingPath_VertexID = TailOfAugmentingPath->LabelField;
             pathThroughBlossom(graph,
                                 &vertexVector[TailOfAugmentingPath->ShoreField],
                                 &vertexVector[Graph<IT,VT>::Other(graph,graph.GetMatchField(TailOfAugmentingPath_VertexID),TailOfAugmentingPath_VertexID)],
@@ -927,14 +931,16 @@ void Matcher::pathThroughBlossom(Graph<IT, VT>& graph,
         else if (TailOfAugmentingPath->IsEven())
         {
             //W = Other(Match(V), V);
-            ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            //ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            auto TailOfAugmentingPath_VertexID = TailOfAugmentingPath->LabelField;
             nextVertex=&vertexVector[Graph<IT,VT>::Other(graph,graph.GetMatchField(TailOfAugmentingPath_VertexID),TailOfAugmentingPath_VertexID)];
             
             //ListPut(Tree(W), P);
             path.push_back(nextVertex->TreeField);
 
             //Path(Other(Tree(W), W), B, P);
-            ptrdiff_t nextVertex_VertexID = nextVertex - &vertexVector[0];
+            //ptrdiff_t nextVertex_VertexID = nextVertex - &vertexVector[0];
+            auto nextVertex_VertexID = nextVertex->LabelField;
             pathThroughBlossom(graph,
                                 &vertexVector[Graph<IT,VT>::Other(graph,nextVertex->TreeField,nextVertex_VertexID)],
                                 TailOfAugmentingPathBase,
@@ -942,8 +948,10 @@ void Matcher::pathThroughBlossom(Graph<IT, VT>& graph,
                                 path);
         }
         else{
-            ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
-            ptrdiff_t TailOfAugmentingPathBase_VertexID = TailOfAugmentingPathBase - &vertexVector[0];
+            //ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            //ptrdiff_t TailOfAugmentingPathBase_VertexID = TailOfAugmentingPathBase - &vertexVector[0];
+            auto TailOfAugmentingPath_VertexID= TailOfAugmentingPath->LabelField;
+            auto TailOfAugmentingPathBase_VertexID= TailOfAugmentingPathBase->LabelField;
             std::cerr << "(Path) Internal error. TailOfAugmentingPath_VertexID: " << TailOfAugmentingPath_VertexID<< " TailOfAugmentingPathBase_VertexID: " << TailOfAugmentingPathBase_VertexID << std::endl;
             exit(1);
         }
