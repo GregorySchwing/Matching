@@ -384,31 +384,19 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             IT nextVertexIndex;
             Vertex<IT>* nextVertex;
             found_augmenting_path.store(false);
+            int workerID = tid;
             // Push edges onto stack, breaking if that stackEdge is a solution.
             for (IT start = graph.indptr[def_root]; start < graph.indptr[def_root + 1]; ++start) {
                 Frontier<IT> f;
                 vertexVector[def_root].AgeField=f.time++;
                 f.tree.push_back(vertexVector[def_root]);
                 f.stack.push_back(graph.indices[start]);
-                {
-                    int workerID = tid;
-                    int minWork = std::numeric_limits<int>::max();
-                    int minWorkID = tid;
-
-                    do {
-                        workerID++;
-                        if(worklists[workerID%nworkers].size_approx()<minWork && workerID%nworkers != tid){
-                            minWorkID=workerID%nworkers;
-                            minWork=worklists[workerID%nworkers].size_approx();
-                            if (minWork == 0) break;
-                        }
-                    } while (workerID%nworkers != tid);
-                    num_enqueued++;
-                    worklists[minWorkID].enqueue(f);
-                    f.reinit(vertexVector);
-                    f.clear();
-                }
-
+                workerID++;
+                if (workerID%nworkers == tid) workerID++;
+                num_enqueued++;
+                worklists[workerID%nworkers].enqueue(f);
+                f.reinit(vertexVector);
+                f.clear();
                 nextVertexIndex = Graph<IT, VT>::Other(graph, graph.indices[start], def_root);
                 nextVertex = &vertexVector[nextVertexIndex];
                 if (!nextVertex->IsReached() && !graph.IsMatched(nextVertexIndex))
