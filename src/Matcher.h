@@ -66,10 +66,11 @@ private:
 
     template <typename IT, typename VT>
     static bool capped_search(Graph<IT, VT>& graph, 
-                    const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
-                    IT max_depth=20);
+                    IT max_depth=20,
+                    IT current_call=0,
+                    IT max_num_deferrals=1);
 
     template <typename IT, typename VT>
     static void start_search(Graph<IT, VT>& graph, 
@@ -318,10 +319,10 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
     std::vector<IT> path;
     Frontier<IT> f;
     const size_t N = graph.getN();
-
+    const size_t nworkers = worklists.size();
     IT expected = -1;
     IT desired = 0;
-
+    IT threshold = 20;
     // first thread to reach here claims master status.
     auto thread_match_start = high_resolution_clock::now();
     if (currentRoot.compare_exchange_strong(expected, desired)) {
@@ -342,7 +343,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                 vertexVector[currentRoot].AgeField=f.time++;
                 f.tree.push_back(vertexVector[currentRoot]);
                 Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,currentRoot,f.stack);
-                defer = capped_search(graph,currentRoot,f,vertexVector,20);
+                defer = capped_search(graph,f,vertexVector,threshold);
                 if (defer){
                     deferred_roots.enqueue(currentRoot);
                     f.reinit(vertexVector);
@@ -365,11 +366,81 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
         std::cout << "TID(" << tid << ") Number of deferred searches: "<< deferred_roots.size_approx() << '\n';
 
-
-
         // This wakes up the workers.
         for (auto & cv:worklistCVs)
             cv.notify_one();
+
+        IT def_root;
+        while(deferred_roots.try_dequeue(def_root)){
+            // Could've been matched.
+            if (graph.IsMatched(def_root)) {
+                continue;
+            }
+            printf("Restarting search of root %d\n",def_root);
+            vertexVector[def_root].AgeField=f.time++;
+            f.tree.push_back(vertexVector[def_root]);
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,def_root,f.stack);
+            IT current_call = 0;
+            // Start with one frontier per thread.
+            IT max_num_deferrals = nworkers-1;
+            defer = capped_search(graph,f,vertexVector,threshold);
+            // While deferred.
+            if (defer){
+                printf("DEFERRED!\n");
+                f.reinit(vertexVector);
+                f.clear();
+            } else {
+                if (f.TailOfAugmentingPathVertexIndex!=-1){
+                    printf("FOUND AP!\n");
+                    TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                    augment(graph,TailOfAugmentingPath,vertexVector,path);
+                    f.reinit(vertexVector);
+                    path.clear();
+                    f.clear();
+                } else {
+                    printf("DEAD!\n");
+                    f.clear();
+                }
+            }
+            /*
+            while(capped_search(graph,f,vertexVector,threshold,current_call,max_num_deferrals)){
+                printf("Deferral number %d of root %d\n",current_call,def_root);
+                f.updateTree(vertexVector);
+                Frontier<IT> f2;
+                f.split(f2);
+                int workerID = tid;
+                int minWork = std::numeric_limits<int>::max();
+                int minWorkID = tid;
+                // Load balancing.
+                do {
+                    workerID++;
+                    if(worklists[workerID%nworkers].size_approx()<minWork){
+                        minWorkID=workerID%nworkers;
+                        minWork=worklists[workerID%nworkers].size_approx();
+                        if (minWork == 0) break;
+                    }
+                } while (workerID%nworkers != tid);
+                worklists[minWorkID].enqueue(f2);
+                worklistCVs[minWorkID].notify_one();
+            }
+            f.reinit(vertexVector);
+            f.clear();
+            */
+            /*
+            if (f.TailOfAugmentingPathVertexIndex!=-1){
+                found_augmenting_path.store(true);
+                TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                augment(graph,TailOfAugmentingPath,vertexVector,path);
+                f.reinit(vertexVector);
+                path.clear();
+                f.clear();
+            } else {
+                f.clear();
+            }
+            */
+        }
+
+
     } else {
         // Other threads wait for initial pass to complete.
         while(currentRoot.load(std::memory_order_relaxed)!=N){
@@ -378,12 +449,11 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             // If the algorithm is finished (CR==N), return
             worklistCVs[tid].wait(lock, [&] { return currentRoot.load(std::memory_order_relaxed)==N; });
         }
-
-        while(deferred_roots.size_approx()==0){
+        return;
+        while(deferred_roots.size_approx()!=0){
             std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
             // If the worklist is empty (size_approx == 0), wait for a signal
             worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx(); });
-            
             while(worklists[tid].try_dequeue(f)){
                 read_messages[tid]++;
                 // Lazy allocation of vv when thread starts working.
@@ -395,16 +465,10 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
                     std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
                 }
-                continue_search(graph,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID,num_contracting_blossoms);
-                // If this thread found an AP, send it to master.
-                if (f.TailOfAugmentingPathVertexIndex!=-1){
-                    // Signal other searchers to gracefully exit.
-                    bool expected = false;
-                    // First to find AP, extract path.
-                    if(found_augmenting_path.compare_exchange_strong(expected,true)){
-
-                    }
-                }
+                f.updateVertexVector(vertexVector);
+                capped_search(graph,f,vertexVector,1,1,0);
+                f.reinit(vertexVector);
+                f.clear();
                 num_dequeued++;
             }
         }
@@ -685,10 +749,11 @@ void Matcher::search(Graph<IT, VT>& graph,
 
 template <typename IT, typename VT>
 bool Matcher::capped_search(Graph<IT, VT>& graph, 
-                    const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
-                    IT max_depth) {
+                    IT max_depth,
+                    IT current_call,
+                    IT max_num_deferrals) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
@@ -745,7 +810,7 @@ bool Matcher::capped_search(Graph<IT, VT>& graph,
             Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
 
-        if (stack.size()>max_depth)
+        if (current_call < max_num_deferrals && stack.size()>max_depth)
             return true;
     }
     return false;

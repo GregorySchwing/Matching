@@ -11,6 +11,8 @@ public:
 
     void reinit(std::vector<Vertex<IT>> &vertexVector);
     void updateTree(std::vector<Vertex<IT>> &vertexVector);
+    void updateVertexVector(std::vector<Vertex<IT>> &vertexVector);
+    void split(Frontier<IT> & f2,IT type=0);
     void clear();
 
     // Other member functions...
@@ -49,6 +51,18 @@ void Frontier<IT>::reinit(std::vector<Vertex<IT>> &vertexVector){
 
 // Constructor
 template <typename IT>
+void Frontier<IT>::split(Frontier<IT> & f2,IT type){
+    f2.tree=tree;
+    const size_t original_size = stack.size();
+    std::move(stack.begin()+(original_size/2), stack.end(), std::back_inserter(f2.stack));
+    if(original_size != stack.size()+f2.stack.size()){
+        printf("MASSIVE ERROR %ld != %ld + %ld\n",original_size,stack.size(),f2.stack.size());
+        exit(1);
+    }
+}
+
+// Constructor
+template <typename IT>
 void Frontier<IT>::updateTree(std::vector<Vertex<IT>> &vertexVector){      
     for (auto &V : tree) {
         V.TreeField=vertexVector[V.LabelField].TreeField;
@@ -59,6 +73,15 @@ void Frontier<IT>::updateTree(std::vector<Vertex<IT>> &vertexVector){
         V.DirectParentField=vertexVector[V.LabelField].DirectParentField;
         V.GroupRootField=vertexVector[V.LabelField].GroupRootField;
         V.SizeField=vertexVector[V.LabelField].SizeField;
+    }
+}
+
+
+// Constructor
+template <typename IT>
+void Frontier<IT>::updateVertexVector(std::vector<Vertex<IT>> &vertexVector){      
+    for (auto &V : tree) {
+        vertexVector[V.LabelField] = V;
     }
 }
 
