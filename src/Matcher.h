@@ -376,38 +376,24 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             if (graph.IsMatched(def_root)) {
                 continue;
             }
+            // Specify the length of the vector (replace n with your desired length)
+            const size_t n = 2;
+            // Create a vector of length n with all zeroes
+            std::vector<int> zeroVector(n, 0);
             printf("Restarting search of root %d\n",def_root);
             vertexVector[def_root].AgeField=f.time++;
             f.tree.push_back(vertexVector[def_root]);
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,def_root,f.stack);
             IT current_call = 0;
             // Start with one frontier per thread.
-            IT max_num_deferrals = nworkers-1;
-            defer = capped_search(graph,f,vertexVector,threshold);
-            // While deferred.
-            if (defer){
-                printf("DEFERRED!\n");
-                f.reinit(vertexVector);
-                f.clear();
-            } else {
-                if (f.TailOfAugmentingPathVertexIndex!=-1){
-                    printf("FOUND AP!\n");
-                    TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
-                    augment(graph,TailOfAugmentingPath,vertexVector,path);
-                    f.reinit(vertexVector);
-                    path.clear();
-                    f.clear();
-                } else {
-                    printf("DEAD!\n");
-                    f.clear();
-                }
-            }
-            /*
-            while(capped_search(graph,f,vertexVector,threshold,current_call,max_num_deferrals)){
+            IT max_num_deferrals = nworkers+1;            
+            while(capped_search(graph,f,vertexVector,threshold,current_call++,max_num_deferrals)){
                 printf("Deferral number %d of root %d\n",current_call,def_root);
+                
                 f.updateTree(vertexVector);
                 Frontier<IT> f2;
                 f.split(f2);
+                /*
                 int workerID = tid;
                 int minWork = std::numeric_limits<int>::max();
                 int minWorkID = tid;
@@ -422,10 +408,11 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                 } while (workerID%nworkers != tid);
                 worklists[minWorkID].enqueue(f2);
                 worklistCVs[minWorkID].notify_one();
+                */
             }
             f.reinit(vertexVector);
             f.clear();
-            */
+            
             /*
             if (f.TailOfAugmentingPathVertexIndex!=-1){
                 found_augmenting_path.store(true);

@@ -55,6 +55,7 @@ void Frontier<IT>::split(Frontier<IT> & f2,IT type){
     f2.tree=tree;
     const size_t original_size = stack.size();
     std::move(stack.begin()+(original_size/2), stack.end(), std::back_inserter(f2.stack));
+    stack.erase(stack.begin() + (original_size / 2), stack.end());
     if(original_size != stack.size()+f2.stack.size()){
         printf("MASSIVE ERROR %ld != %ld + %ld\n",original_size,stack.size(),f2.stack.size());
         exit(1);
