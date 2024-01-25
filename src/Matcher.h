@@ -360,16 +360,27 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         auto search_end = high_resolution_clock::now();
         auto duration_search = duration_cast<seconds>(search_end - search_start);
         std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
-        
+        std::cout << "TID(" << tid << ") Number of deferred searches: "<< deferred_roots.size_approx() << '\n';
+
+
+
         // This wakes up the workers.
         for (auto & cv:worklistCVs)
             cv.notify_one();
     } else {
+        // Other threads wait for initial pass to complete.
         while(currentRoot.load(std::memory_order_relaxed)!=N){
             std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
             // If the worklist is empty (size_approx == 0), wait for a signal
             // If the algorithm is finished (CR==N), return
             worklistCVs[tid].wait(lock, [&] { return currentRoot.load(std::memory_order_relaxed)==N; });
+        }
+
+        while(deferred_roots.size_approx()==0){
+            std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
+            // If the worklist is empty (size_approx == 0), wait for a signal
+            worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx(); });
+            
             while(worklists[tid].try_dequeue(f)){
                 read_messages[tid]++;
                 // Lazy allocation of vv when thread starts working.
