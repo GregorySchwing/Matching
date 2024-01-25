@@ -2,52 +2,73 @@
 #define FRONTIER_H
 #include <vector>
 #include "Vertex.h"
-#include "Stack.h"
-#include "DSU.h"
 
 template <typename IT>
 class Frontier  {
 public:
-    Frontier(size_t N, size_t M);
-    void reinit();
+    Frontier();
+    Frontier(size_t _capacity);
+
+    void reinit(std::vector<Vertex<IT>> &vertexVector);
+    void updateTree(std::vector<Vertex<IT>> &vertexVector);
     void clear();
 
     // Other member functions...
-    std::vector<Vertex<IT>> vertexVector;
-    Stack<IT> stack;
-    Stack<IT> tree;
-    Stack<IT> path;
-    DisjointSetUnion<IT> dsu;
+    IT time;
+    IT TailOfAugmentingPathVertexIndex;
+    std::vector<IT> stack;
+    std::vector<Vertex<IT>> tree;
+    size_t capacity;
 };
 
 // Constructor
 template <typename IT>
-Frontier<IT>::Frontier(size_t N, size_t M): vertexVector(N), tree(N), path(M), stack(M){
-    dsu.reset(N);
+Frontier<IT>::Frontier():time(0),TailOfAugmentingPathVertexIndex(-1) {
 }
 
 // Constructor
 template <typename IT>
-void Frontier<IT>::reinit(){       
-    for (auto V : tree) {
-        vertexVector[V].TreeField=-1;
-        vertexVector[V].BridgeField=-1;
-        vertexVector[V].ShoreField=-1;
-        vertexVector[V].AgeField=-1;
-        dsu.link[V]=V;
-        dsu.directParent[V]=-1;
-        dsu.groupRoot[V]=V;
-        dsu.size[V]=1;
+Frontier<IT>::Frontier(size_t _capacity):time(0),TailOfAugmentingPathVertexIndex(-1),capacity(_capacity),stack(_capacity),tree(_capacity) {
+    
+}
+
+// Constructor
+template <typename IT>
+void Frontier<IT>::reinit(std::vector<Vertex<IT>> &vertexVector){      
+    for (auto &V : tree) {
+        vertexVector[V.LabelField].TreeField=-1;
+        vertexVector[V.LabelField].BridgeField=-1;
+        vertexVector[V.LabelField].ShoreField=-1;
+        vertexVector[V.LabelField].AgeField=-1;
+        vertexVector[V.LabelField].LinkField=V.LabelField;
+        vertexVector[V.LabelField].DirectParentField=-1;
+        vertexVector[V.LabelField].GroupRootField=V.LabelField;
+        vertexVector[V.LabelField].SizeField=1;
     }
 }
 
+// Constructor
+template <typename IT>
+void Frontier<IT>::updateTree(std::vector<Vertex<IT>> &vertexVector){      
+    for (auto &V : tree) {
+        V.TreeField=vertexVector[V.LabelField].TreeField;
+        V.BridgeField=vertexVector[V.LabelField].BridgeField;
+        V.ShoreField=vertexVector[V.LabelField].ShoreField;
+        V.AgeField=vertexVector[V.LabelField].AgeField;
+        V.LinkField=vertexVector[V.LabelField].LinkField;
+        V.DirectParentField=vertexVector[V.LabelField].DirectParentField;
+        V.GroupRootField=vertexVector[V.LabelField].GroupRootField;
+        V.SizeField=vertexVector[V.LabelField].SizeField;
+    }
+}
 
 // Constructor
 template <typename IT>
-void Frontier<IT>::clear(){       
+void Frontier<IT>::clear(){
+    time = 0;
+    TailOfAugmentingPathVertexIndex = -1;
     stack.clear();
     tree.clear();
-    path.clear();
 }
 
 #endif // FRONTIER_H

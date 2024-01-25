@@ -11,7 +11,7 @@
 
 using namespace std::chrono;
 namespace fmm = fast_matrix_market;
-
+#include "FileReader.h"
 #include "Vertex.h"
 #include "Stack.h"
 #include <list>
@@ -19,7 +19,22 @@ namespace fmm = fast_matrix_market;
 template <typename IT, typename VT>
 class Graph {
 public:
-    Graph(const std::filesystem::path& in_path);
+    //Graph(const std::filesystem::path& in_path);
+    Graph(  std::vector<IT> &_indptr,
+            std::vector<IT> &_indices,
+            std::vector<IT> &_original_rows,
+            std::vector<IT> &_original_cols,
+            std::vector<VT> &_original_vals,
+            size_t N,
+            size_t M);
+    /*
+    Graph(  std::vector<IT> &indptr,
+            std::vector<IT> &indices,
+            std::vector<IT> &original_rows,
+            std::vector<IT> &original_cols,
+            std::vector<IT> &original_vals,
+            std::size_t N,
+            std::size_t M);*/
     size_t getN() const;
     size_t getM() const;
     bool IsMatched(size_t index) const;
@@ -28,20 +43,20 @@ public:
     static bool pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                         std::vector<Vertex<IT>> & vertexVector, 
                                         IT V_index, 
-                                        Stack<IT> &stack,
+                                        std::vector<IT> &stack,
                                         IT optionalEdge1=-1,
                                         IT optionalEdge2=-1);
     static inline IT Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId);
     static IT EdgeFrom(const Graph<IT, VT>& graph, const IT edgeIndex);
     static IT EdgeTo(const Graph<IT, VT>& graph, const IT edgeIndex);
     // Other member functions...
-    std::vector<IT> indptr;
-    std::vector<IT> indices;
-    std::vector<IT> original_rows;
-    std::vector<IT> original_cols;
-    std::vector<VT> original_vals;
-    size_t N,M;
-    std::vector<IT> matching;
+    const std::vector<IT> &indptr;
+    const std::vector<IT> &indices;
+    const std::vector<IT> &original_rows;
+    const std::vector<IT> &original_cols;
+    const std::vector<VT> &original_vals;
+    const size_t N,M;
+    std::vector<std::atomic<IT>> matching;
 
 private:    
     void read_file(const std::filesystem::path& in_path);
@@ -49,11 +64,50 @@ private:
 };
 
 // Constructor
+/*
 template <typename IT, typename VT>
 Graph<IT,VT>::Graph(const std::filesystem::path& in_path) {
     read_file(in_path);
 }
+*/
 
+template <typename IT, typename VT>
+Graph<IT,VT>::Graph(std::vector<IT> &_indptr,
+                    std::vector<IT> &_indices,
+                    std::vector<IT> &_original_rows,
+                    std::vector<IT> &_original_cols,
+                    std::vector<VT> &_original_vals,
+                    size_t _N,
+                    size_t _M):
+                    indptr(_indptr),
+                    indices(_indices),
+                    original_rows(_original_rows),
+                    original_cols(_original_cols),
+                    original_vals(_original_vals),
+                    N(_N),
+                    M(_M),
+                    matching(_N) {
+    // Assign all elements in the vector to false
+    for (auto& atomicBool : matching) {
+        atomicBool.store(-1);
+    }
+}
+
+
+// Constructor
+/*
+template <typename IT, typename VT>
+Graph<IT,VT>::Graph(std::vector<IT> &_indptr,
+            std::vector<IT> &indices,
+            std::vector<IT> &original_rows,
+            std::vector<IT> &original_cols,
+            std::vector<IT> &original_vals,
+            std::size_t N,
+            std::size_t M) :
+            matching(N) {
+    //indptr = std::move(_indptr);
+}
+*/
 template <typename IT, typename VT>
 size_t Graph<IT,VT>::getN() const{
     return N;
@@ -67,16 +121,19 @@ size_t Graph<IT,VT>::getM() const{
 
 template <typename IT, typename VT>
 bool Graph<IT,VT>::IsMatched(size_t index) const{
+    //return matching[index].load()>-1;
     return matching[index]>-1;
 }
 
 template <typename IT, typename VT>
 IT Graph<IT,VT>::GetMatchField(size_t index) const{
+    //return matching[index].load();
     return matching[index];
 }
 
 template <typename IT, typename VT>
 void Graph<IT,VT>::SetMatchField(size_t index,IT edge){
+    //matching[index].store(edge);
     matching[index]=edge;
 }
 
@@ -158,7 +215,7 @@ template <typename IT, typename VT>
 bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                     std::vector<Vertex<IT>> & vertexVector, 
                                     IT V_index, 
-                                    Stack<IT> &stack,
+                                    std::vector<IT> &stack,
                                     IT optionalEdge1,
                                     IT optionalEdge2){
     IT nextVertexIndex;
