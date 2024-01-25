@@ -372,7 +372,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         num_enqueued++;
         while(deferred_roots.try_dequeue(def_root)){
             // Could've been matched.
-            printf("Restarting search of root %d defferred roots remaining %ld\n",def_root, deferred_roots.size_approx());
+            //printf("Restarting search of root %d defferred roots remaining %ld\n",def_root, deferred_roots.size_approx());
             if (graph.IsMatched(def_root)) {
                 continue;
             }
@@ -427,7 +427,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             // If the worklist is empty (size_approx == 0), wait for a signal
             //worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx(); });
             while(worklists[tid].try_dequeue(f)){
-                std::cout << "TID(" << tid << ") Continuing search rooted at: "<< f.tree.front().LabelField << " deferred roots remaining: " << deferred_roots.size_approx() <<'\n';
+                //std::cout << "TID(" << tid << ") Continuing search rooted at: "<< f.tree.front().LabelField << " deferred roots remaining: " << deferred_roots.size_approx() <<'\n';
                 read_messages[tid]++;
                 if (!graph.IsMatched(f.tree.front().LabelField)) {
                     // Lazy allocation of vv when thread starts working.
