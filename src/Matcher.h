@@ -391,7 +391,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
 
                     do {
                         workerID++;
-                        if(worklists[workerID%nworkers].size_approx()<minWork){
+                        if(worklists[workerID%nworkers].size_approx()<minWork && workerID%nworkers != tid){
                             minWorkID=workerID%nworkers;
                             minWork=worklists[workerID%nworkers].size_approx();
                             if (minWork == 0) break;
@@ -429,24 +429,26 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             while(worklists[tid].try_dequeue(f)){
                 std::cout << "TID(" << tid << ") Continuing search rooted at: "<< f.tree.front().LabelField << " deferred roots remaining: " << deferred_roots.size_approx() <<'\n';
                 read_messages[tid]++;
-                // Lazy allocation of vv when thread starts working.
-                if(vertexVector.capacity()==0){
-                    auto allocate_start = high_resolution_clock::now();
-                    vertexVector.reserve(graph.getN());
-                    std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
-                    auto allocate_end = high_resolution_clock::now();
-                    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
-                    std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+                if (!graph.IsMatched(f.tree.front().LabelField)) {
+                    // Lazy allocation of vv when thread starts working.
+                    if(vertexVector.capacity()==0){
+                        auto allocate_start = high_resolution_clock::now();
+                        vertexVector.reserve(graph.getN());
+                        std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
+                        auto allocate_end = high_resolution_clock::now();
+                        auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+                        std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+                    }
+                    f.updateVertexVector(vertexVector);
+                    capped_search(graph,f,vertexVector,std::numeric_limits<int>::max());
+                    if (f.TailOfAugmentingPathVertexIndex!=-1){
+                        TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                        augment(graph,TailOfAugmentingPath,vertexVector,path);
+                    }
+                    f.reinit(vertexVector);
+                    f.clear();
+                    path.clear();
                 }
-                f.updateVertexVector(vertexVector);
-                capped_search(graph,f,vertexVector,std::numeric_limits<int>::max());
-                if (f.TailOfAugmentingPathVertexIndex!=-1){
-                    TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
-                    augment(graph,TailOfAugmentingPath,vertexVector,path);
-                }
-                f.reinit(vertexVector);
-                f.clear();
-                path.clear();
                 num_dequeued++;
             }
         }
