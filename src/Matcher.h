@@ -45,7 +45,7 @@ public:
 template <typename IT, typename VT>
 static void match_persistent_wl3(Graph<IT, VT>& graph,
                                 std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                moodycamel::ConcurrentQueue<std::vector<IT>> &pathQueue,
+                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
@@ -195,7 +195,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
                         int num_threads) {
     auto mt_thread_coordination_start = high_resolution_clock::now();
     size_t capacity = 1;
-    moodycamel::ConcurrentQueue<std::vector<IT>> pathQueue{capacity};
+    moodycamel::ConcurrentQueue<IT> deferred_roots{capacity};
     std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> worklists;
     worklists.reserve(num_threads);
     for (int i = 0; i < num_threads; ++i) {
@@ -226,7 +226,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     //spinning.resize(num_threads,false);
     // Access the graph elements as needed
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,
-    worklists,pathQueue,masterTID,graph,
+    worklists,deferred_roots,masterTID,graph,
     currentRoot,found_augmenting_path,
     worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_contracting_blossoms);
 
@@ -294,7 +294,7 @@ void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                                 std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                moodycamel::ConcurrentQueue<std::vector<IT>> &pathQueue,
+                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
