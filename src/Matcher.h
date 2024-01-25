@@ -440,8 +440,13 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                 }
                 f.updateVertexVector(vertexVector);
                 capped_search(graph,f,vertexVector,std::numeric_limits<int>::max());
+                if (f.TailOfAugmentingPathVertexIndex!=-1){
+                    TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                    augment(graph,TailOfAugmentingPath,vertexVector,path);
+                }
                 f.reinit(vertexVector);
                 f.clear();
+                path.clear();
                 num_dequeued++;
             }
         }
