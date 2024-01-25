@@ -65,7 +65,7 @@ private:
                     std::vector<Vertex<IT>> & vertexVector);
 
     template <typename IT, typename VT>
-    static void capped_search(Graph<IT, VT>& graph, 
+    static bool capped_search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
@@ -334,19 +334,26 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
 
         //const size_t N = 5;
+        bool defer;
         auto search_start = high_resolution_clock::now();
         for (; currentRoot < N; ++currentRoot) {
             if (!graph.IsMatched(currentRoot)) {
                 // Your matching logic goes here...
-                capped_search(graph,currentRoot,f,vertexVector,20);
-                if (f.TailOfAugmentingPathVertexIndex!=-1){
-                    TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
-                    augment(graph,TailOfAugmentingPath,vertexVector,path);
+                defer = capped_search(graph,currentRoot,f,vertexVector,20);
+                if (defer){
+                    deferred_roots.enqueue(currentRoot);
                     f.reinit(vertexVector);
-                    path.clear();
                     f.clear();
                 } else {
-                    f.clear();
+                    if (f.TailOfAugmentingPathVertexIndex!=-1){
+                        TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                        augment(graph,TailOfAugmentingPath,vertexVector,path);
+                        f.reinit(vertexVector);
+                        path.clear();
+                        f.clear();
+                    } else {
+                        f.clear();
+                    }
                 }
             }
         }
@@ -663,7 +670,7 @@ void Matcher::search(Graph<IT, VT>& graph,
 
 
 template <typename IT, typename VT>
-void Matcher::capped_search(Graph<IT, VT>& graph, 
+bool Matcher::capped_search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
@@ -682,7 +689,6 @@ void Matcher::capped_search(Graph<IT, VT>& graph,
     //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
     nextVertex = &vertexVector[V_index];
     nextVertex->AgeField=time++;
-    nextVertex->DepthField=0;
 
     tree.push_back(*nextVertex);
 
@@ -717,7 +723,7 @@ void Matcher::capped_search(Graph<IT, VT>& graph,
             //graph.SetMatchField(ToBaseVertexID,stackEdge);
             // I'll let the augment path method recover the path.
             f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
-            return;
+            return false;
         } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
@@ -735,8 +741,11 @@ void Matcher::capped_search(Graph<IT, VT>& graph,
             // Shrink Blossoms
             Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
+
+        if (stack.size()>max_depth)
+            return true;
     }
-    return;
+    return false;
 }
 
 

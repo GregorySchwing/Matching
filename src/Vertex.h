@@ -6,8 +6,6 @@
 template <typename IT>
 class Vertex {
 public:
-    // For deferring and converting from bfs to dfs
-    IT DepthField;
     IT TreeField;
     IT BridgeField;
     IT ShoreField;
@@ -22,7 +20,6 @@ public:
     // Constructor
     Vertex(IT Label)
         : 
-          DepthField(-1),
           TreeField(-1),
           BridgeField(-1), 
           ShoreField(-1), 
@@ -35,7 +32,7 @@ public:
 
     // Copy constructor
     Vertex(const Vertex& other)
-        : DepthField(other.DepthField),
+        : 
           TreeField(other.TreeField), 
           BridgeField(other.BridgeField),
           ShoreField(other.ShoreField), 
@@ -49,7 +46,6 @@ public:
 
     // Default constructor
     Vertex() : 
-          DepthField(-1),
           TreeField(-1),
           BridgeField(-1), 
           ShoreField(-1), 
