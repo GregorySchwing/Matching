@@ -63,6 +63,14 @@ private:
                     const size_t V_index,
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector);
+
+    template <typename IT, typename VT>
+    static void capped_search(Graph<IT, VT>& graph, 
+                    const size_t V_index,
+                    Frontier<IT> & f,
+                    std::vector<Vertex<IT>> & vertexVector,
+                    IT max_depth=20);
+
     template <typename IT, typename VT>
     static void start_search(Graph<IT, VT>& graph, 
                     const size_t V_index,
@@ -330,7 +338,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         for (; currentRoot < N; ++currentRoot) {
             if (!graph.IsMatched(currentRoot)) {
                 // Your matching logic goes here...
-                start_search(graph,currentRoot,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID);
+                capped_search(graph,currentRoot,f,vertexVector,20);
                 if (f.TailOfAugmentingPathVertexIndex!=-1){
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     augment(graph,TailOfAugmentingPath,vertexVector,path);
@@ -345,6 +353,8 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         auto search_end = high_resolution_clock::now();
         auto duration_search = duration_cast<seconds>(search_end - search_start);
         std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
+        
+        // This wakes up the workers.
         for (auto & cv:worklistCVs)
             cv.notify_one();
     } else {
@@ -352,7 +362,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
             // If the worklist is empty (size_approx == 0), wait for a signal
             // If the algorithm is finished (CR==N), return
-            worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)==N; });
+            worklistCVs[tid].wait(lock, [&] { return currentRoot.load(std::memory_order_relaxed)==N; });
             while(worklists[tid].try_dequeue(f)){
                 read_messages[tid]++;
                 // Lazy allocation of vv when thread starts working.
@@ -645,6 +655,84 @@ void Matcher::search(Graph<IT, VT>& graph,
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
             // Not sure if this is wrong or the augment method is wrong
+            Blossom::Shrink(graph,stackEdge,vertexVector,stack);
+        }
+    }
+    return;
+}
+
+
+template <typename IT, typename VT>
+void Matcher::capped_search(Graph<IT, VT>& graph, 
+                    const size_t V_index,
+                    Frontier<IT> & f,
+                    std::vector<Vertex<IT>> & vertexVector,
+                    IT max_depth) {
+    Vertex<IT> *FromBase,*ToBase, *nextVertex;
+    IT FromBaseVertexID,ToBaseVertexID;
+    IT stackEdge, matchedEdge;
+    IT nextVertexIndex;
+
+    IT vertex_depth = 0;
+    bool breached_threshold = false;
+
+    IT &time = f.time;
+    std::vector<IT> &stack = f.stack;
+    std::vector<Vertex<IT>> &tree = f.tree;
+    //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
+    nextVertex = &vertexVector[V_index];
+    nextVertex->AgeField=time++;
+    nextVertex->DepthField=0;
+
+    tree.push_back(*nextVertex);
+
+    // Push edges onto stack, breaking if that stackEdge is a solution.
+    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
+    while(!stack.empty()){
+        stackEdge = stack.back();
+        stack.pop_back();
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        FromBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeFrom(graph,stackEdge),vertexVector);  
+        FromBase = &vertexVector[FromBaseVertexID];
+
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        ToBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeTo(graph,stackEdge),vertexVector);  
+
+        ToBase = &vertexVector[ToBaseVertexID];
+
+        // Edge is between two vertices in the same blossom, continue.
+        if (FromBase == ToBase)
+            continue;
+        if(!FromBase->IsEven()){
+            std::swap(FromBase,ToBase);
+            std::swap(FromBaseVertexID,ToBaseVertexID);
+        }
+        // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
+        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(*ToBase);
+            //graph.SetMatchField(ToBaseVertexID,stackEdge);
+            // I'll let the augment path method recover the path.
+            f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
+            return;
+        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(*ToBase);
+
+            matchedEdge=graph.GetMatchField(ToBaseVertexID);
+            nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+            nextVertex = &vertexVector[nextVertexIndex];
+            nextVertex->AgeField=time++;
+            tree.push_back(*nextVertex);
+
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+
+        } else if (ToBase->IsEven()) {
+            // Shrink Blossoms
             Blossom::Shrink(graph,stackEdge,vertexVector,stack);
         }
     }
