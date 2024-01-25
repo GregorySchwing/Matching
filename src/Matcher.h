@@ -338,7 +338,10 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         auto search_start = high_resolution_clock::now();
         for (; currentRoot < N; ++currentRoot) {
             if (!graph.IsMatched(currentRoot)) {
-                // Your matching logic goes here...
+
+                vertexVector[currentRoot].AgeField=f.time++;
+                f.tree.push_back(vertexVector[currentRoot]);
+                Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,currentRoot,f.stack);
                 defer = capped_search(graph,currentRoot,f,vertexVector,20);
                 if (defer){
                     deferred_roots.enqueue(currentRoot);
@@ -691,20 +694,9 @@ bool Matcher::capped_search(Graph<IT, VT>& graph,
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
 
-    IT vertex_depth = 0;
-    bool breached_threshold = false;
-
     IT &time = f.time;
     std::vector<IT> &stack = f.stack;
     std::vector<Vertex<IT>> &tree = f.tree;
-    //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
-    nextVertex = &vertexVector[V_index];
-    nextVertex->AgeField=time++;
-
-    tree.push_back(*nextVertex);
-
-    // Push edges onto stack, breaking if that stackEdge is a solution.
-    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
     while(!stack.empty()){
         stackEdge = stack.back();
         stack.pop_back();
