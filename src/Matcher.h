@@ -369,6 +369,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             cv.notify_one();
 
         IT def_root;
+        num_enqueued++;
         while(deferred_roots.try_dequeue(def_root)){
             // Could've been matched.
             printf("Restarting search of root %d defferred roots remaining %ld\n",def_root, deferred_roots.size_approx());
@@ -383,7 +384,6 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                 vertexVector[def_root].AgeField=f.time++;
                 f.tree.push_back(vertexVector[def_root]);
                 f.stack.push_back(graph.indices[start]);
-                num_enqueued++;
                 {
                     int workerID = tid;
                     int minWork = std::numeric_limits<int>::max();
@@ -397,8 +397,8 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                             if (minWork == 0) break;
                         }
                     } while (workerID%nworkers != tid);
+                    num_enqueued++;
                     worklists[minWorkID].enqueue(f);
-                    worklistCVs[minWorkID].notify_one();
                     f.reinit(vertexVector);
                     f.clear();
                 }
@@ -409,11 +409,9 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                     break;
                 
             }
-            // This wakes up the workers.
-            //for (auto & cv:worklistCVs)
-            //    cv.notify_one();
-            while(num_enqueued.load()!=num_dequeued.load()){}
+            while(num_enqueued.load()!=num_dequeued.load()+1){}
         }
+        num_dequeued++;
 
     } else {
         // Other threads wait for initial pass to complete.
@@ -429,7 +427,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             // If the worklist is empty (size_approx == 0), wait for a signal
             //worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx(); });
             while(worklists[tid].try_dequeue(f)){
-                std::cout << "TID(" << tid << ") Continuing search rooted at: "<< f.tree.front().LabelField << "deferred roots remaining: " << deferred_roots.size_approx() <<'\n';
+                std::cout << "TID(" << tid << ") Continuing search rooted at: "<< f.tree.front().LabelField << " deferred roots remaining: " << deferred_roots.size_approx() <<'\n';
                 read_messages[tid]++;
                 // Lazy allocation of vv when thread starts working.
                 if(vertexVector.capacity()==0){
