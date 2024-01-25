@@ -305,43 +305,32 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
                                 std::atomic<IT> & num_contracting_blossoms) {
+    std::vector<Vertex<IT>> vertexVector;
+    Vertex<IT> * TailOfAugmentingPath;
+    std::vector<IT> path;
+    Frontier<IT> f;
     const size_t N = graph.getN();
 
     IT expected = -1;
     IT desired = 0;
+
     // first thread to reach here claims master status.
     auto thread_match_start = high_resolution_clock::now();
     if (currentRoot.compare_exchange_strong(expected, desired)) {
         masterTID.store(tid);
-        std::vector<Vertex<IT>> vertexVector;
         auto allocate_start = high_resolution_clock::now();
         vertexVector.reserve(graph.getN());
         std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
         auto allocate_end = high_resolution_clock::now();
         auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
         std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
-        Vertex<IT> * TailOfAugmentingPath;
-        Frontier<IT> f;
-        std::vector<IT> path;
+
         //const size_t N = 5;
-        IT lastIterNumEnqueued;
-        lastIterNumEnqueued = num_enqueued.load();
         auto search_start = high_resolution_clock::now();
         for (; currentRoot < N; ++currentRoot) {
             if (!graph.IsMatched(currentRoot)) {
                 // Your matching logic goes here...
-                found_augmenting_path.store(false);
                 start_search(graph,currentRoot,f,vertexVector,num_enqueued,worklists,found_augmenting_path,masterTID);
-                if (f.TailOfAugmentingPathVertexIndex!=-1){
-                    // Signal other searchers to gracefully exit.
-                    found_augmenting_path.store(true);
-                }
-                //Wait for searchers to return;
-                if (num_enqueued.load()!=num_dequeued.load()){
-                    std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
-                    worklistCVs[tid].wait(lock, [&] { return num_enqueued.load()!=num_dequeued.load(); });
-                }
-
                 if (f.TailOfAugmentingPathVertexIndex!=-1){
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     augment(graph,TailOfAugmentingPath,vertexVector,path);
@@ -349,12 +338,6 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                     path.clear();
                     f.clear();
                 } else {
-                    // Avoidable if no searchers were spawned.
-                    // Wait for other threads.
-                    if (lastIterNumEnqueued!=num_enqueued.load()){
-                        f.reinit(vertexVector);
-                        lastIterNumEnqueued = num_enqueued.load();
-                    }
                     f.clear();
                 }
             }
@@ -365,17 +348,15 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
         for (auto & cv:worklistCVs)
             cv.notify_one();
     } else {
-        std::vector<Vertex<IT>> vertexVector;
         while(currentRoot.load(std::memory_order_relaxed)!=N){
             std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
             // If the worklist is empty (size_approx == 0), wait for a signal
             // If the algorithm is finished (CR==N), return
             worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)==N; });
-            Frontier<IT> f;
             while(worklists[tid].try_dequeue(f)){
                 read_messages[tid]++;
                 // Lazy allocation of vv when thread starts working.
-                if(vertexVector.size()==0){
+                if(vertexVector.capacity()==0){
                     auto allocate_start = high_resolution_clock::now();
                     vertexVector.reserve(graph.getN());
                     std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
@@ -694,7 +675,7 @@ void Matcher::start_search(Graph<IT, VT>& graph,
 
     // Push edges onto stack, breaking if that stackEdge is a solution.
     Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
-    while(!stack.empty() && !found_augmenting_path.load(std::memory_order_relaxed)){
+    while(!stack.empty()){
         stackEdge = stack.back();
         stack.pop_back();
         // Necessary because vertices dont know their own index.
