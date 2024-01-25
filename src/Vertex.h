@@ -19,7 +19,8 @@ public:
     IT DirectParentField;
     // Constructor
     Vertex(IT Label)
-        : TreeField(-1),
+        : 
+          TreeField(-1),
           BridgeField(-1), 
           ShoreField(-1), 
           AgeField(-1), 
@@ -31,7 +32,8 @@ public:
 
     // Copy constructor
     Vertex(const Vertex& other)
-        : TreeField(other.TreeField), 
+        : 
+          TreeField(other.TreeField), 
           BridgeField(other.BridgeField),
           ShoreField(other.ShoreField), 
           AgeField(other.AgeField),
@@ -43,7 +45,8 @@ public:
           
 
     // Default constructor
-    Vertex() : TreeField(-1),
+    Vertex() : 
+          TreeField(-1),
           BridgeField(-1), 
           ShoreField(-1), 
           AgeField(-1),
