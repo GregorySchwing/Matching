@@ -7,7 +7,7 @@
 #SBATCH -n 1
 
 #SBATCH --mem=4G
-#SBATCH --nodelist=res-lab33-ai8111
+#SBATCH --nodelist=reslab32ai8111
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=go2432@wayne.edu
 
