@@ -23,7 +23,8 @@ public:
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
     template <typename IT, typename VT>
     static void match_wl(Graph<IT, VT>& graph, 
-                        int num_threads);
+                        int num_threads,
+                        int deferral_threshold);
     template <typename IT, typename VT>
     static void match_persistent_wl(Graph<IT, VT> &graph,
                                     moodycamel::ConcurrentQueue<IT> &worklist,
@@ -55,7 +56,8 @@ static void match_persistent_wl3(Graph<IT, VT>& graph,
                                 int tid,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms);
+                                std::atomic<IT> & num_contracting_blossoms,
+                                int deferral_threshold);
 
 private:
     template <typename IT, typename VT>
@@ -65,10 +67,15 @@ private:
                     std::vector<Vertex<IT>> & vertexVector);
 
     template <typename IT, typename VT>
+    static bool concurrent_search(Graph<IT, VT>& graph, 
+                        Frontier<IT> & f,
+                        std::vector<Vertex<IT>> & vertexVector);
+
+    template <typename IT, typename VT>
     static bool capped_search(Graph<IT, VT>& graph, 
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
-                    IT max_depth=20);
+                    int max_depth);
 
     template <typename IT, typename VT>
     static void start_search(Graph<IT, VT>& graph, 
@@ -199,7 +206,8 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 #include "ThreadFactory.h"
 template <typename IT, typename VT>
 void Matcher::match_wl(Graph<IT, VT>& graph, 
-                        int num_threads) {
+                        int num_threads,
+                        int deferral_threshold) {
     auto mt_thread_coordination_start = high_resolution_clock::now();
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> deferred_roots{capacity};
@@ -235,7 +243,8 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,
     worklists,deferred_roots,masterTID,graph,
     currentRoot,found_augmenting_path,
-    worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_contracting_blossoms);
+    worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_contracting_blossoms,
+    deferral_threshold);
 
     auto join_thread_start = high_resolution_clock::now();
     for (auto& t : workers) {
@@ -311,7 +320,8 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                                 int tid,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms) {
+                                std::atomic<IT> & num_contracting_blossoms,
+                                int deferral_threshold) {
     std::vector<Vertex<IT>> vertexVector;
     Vertex<IT> * TailOfAugmentingPath;
     std::vector<IT> path;
@@ -320,7 +330,6 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
     const size_t nworkers = worklists.size();
     IT expected = -1;
     IT desired = 0;
-    IT threshold = 20;
     // first thread to reach here claims master status.
     auto thread_match_start = high_resolution_clock::now();
     if (currentRoot.compare_exchange_strong(expected, desired)) {
@@ -341,7 +350,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                 vertexVector[currentRoot].AgeField=f.time++;
                 f.tree.push_back(vertexVector[currentRoot]);
                 Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,currentRoot,f.stack);
-                defer = capped_search(graph,f,vertexVector,threshold);
+                defer = capped_search(graph,f,vertexVector,deferral_threshold);
                 if (defer){
                     deferred_roots.enqueue(currentRoot);
                     f.reinit(vertexVector);
@@ -378,31 +387,20 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
             }
             IT nextVertexIndex;
             Vertex<IT>* nextVertex;
+            found_augmenting_path.store(false);
+            int workerID = tid;
             // Push edges onto stack, breaking if that stackEdge is a solution.
             for (IT start = graph.indptr[def_root]; start < graph.indptr[def_root + 1]; ++start) {
                 Frontier<IT> f;
                 vertexVector[def_root].AgeField=f.time++;
                 f.tree.push_back(vertexVector[def_root]);
                 f.stack.push_back(graph.indices[start]);
-                {
-                    int workerID = tid;
-                    int minWork = std::numeric_limits<int>::max();
-                    int minWorkID = tid;
-
-                    do {
-                        workerID++;
-                        if(worklists[workerID%nworkers].size_approx()<minWork && workerID%nworkers != tid){
-                            minWorkID=workerID%nworkers;
-                            minWork=worklists[workerID%nworkers].size_approx();
-                            if (minWork == 0) break;
-                        }
-                    } while (workerID%nworkers != tid);
-                    num_enqueued++;
-                    worklists[minWorkID].enqueue(f);
-                    f.reinit(vertexVector);
-                    f.clear();
-                }
-
+                workerID++;
+                if (workerID%nworkers == tid) workerID++;
+                num_enqueued++;
+                worklists[workerID%nworkers].enqueue(f);
+                f.reinit(vertexVector);
+                f.clear();
                 nextVertexIndex = Graph<IT, VT>::Other(graph, graph.indices[start], def_root);
                 nextVertex = &vertexVector[nextVertexIndex];
                 if (!nextVertex->IsReached() && !graph.IsMatched(nextVertexIndex))
@@ -440,10 +438,17 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                         std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
                     }
                     f.updateVertexVector(vertexVector);
-                    capped_search(graph,f,vertexVector,std::numeric_limits<int>::max());
-                    if (f.TailOfAugmentingPathVertexIndex!=-1){
-                        TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
-                        augment(graph,TailOfAugmentingPath,vertexVector,path);
+                    // If returned without an error stemming from
+                    // someone else augmenting whilst I am searching
+                    // Check if I found an AP.
+                    if(concurrent_search(graph,f,vertexVector)){
+                        if(f.TailOfAugmentingPathVertexIndex!=-1){
+                            bool expected = false;
+                            if(graph.GetMatchField(f.tree.front().LabelField) && found_augmenting_path.compare_exchange_strong(expected,true)){
+                                TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                                augment(graph,TailOfAugmentingPath,vertexVector,path);
+                            }
+                        }
                     }
                     f.reinit(vertexVector);
                     f.clear();
@@ -712,10 +717,19 @@ void Matcher::search(Graph<IT, VT>& graph,
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
 
+            // Minimize atomic matching access
+            /*
             matchedEdge=graph.GetMatchField(ToBaseVertexID);
             nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
             nextVertex = &vertexVector[nextVertexIndex];
             nextVertex->AgeField=time++;
+            tree.push_back(*nextVertex);*/
+            matchedEdge=graph.GetMatchField(ToBaseVertexID);
+            ToBase->MatchField=matchedEdge;
+            nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+            nextVertex = &vertexVector[nextVertexIndex];
+            nextVertex->AgeField=time++;
+            nextVertex->MatchField=matchedEdge;
             tree.push_back(*nextVertex);
 
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
@@ -723,7 +737,10 @@ void Matcher::search(Graph<IT, VT>& graph,
         } else if (ToBase->IsEven()) {
             // Shrink Blossoms
             // Not sure if this is wrong or the augment method is wrong
-            Blossom::Shrink(graph,stackEdge,vertexVector,stack);
+            // Minimize atomic matching access
+            //Blossom::Shrink(graph,stackEdge,vertexVector,stack);
+            Blossom::Shrink_Concurrent(graph,stackEdge,vertexVector,stack);
+
         }
     }
     return;
@@ -734,7 +751,7 @@ template <typename IT, typename VT>
 bool Matcher::capped_search(Graph<IT, VT>& graph, 
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
-                    IT max_depth) {
+                    int max_depth) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
@@ -754,7 +771,6 @@ bool Matcher::capped_search(Graph<IT, VT>& graph,
         // Necessary because vertices dont know their own index.
         // It simplifies vector creation..
         ToBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeTo(graph,stackEdge),vertexVector);  
-
         ToBase = &vertexVector[ToBaseVertexID];
 
         // Edge is between two vertices in the same blossom, continue.
@@ -795,6 +811,74 @@ bool Matcher::capped_search(Graph<IT, VT>& graph,
             return true;
     }
     return false;
+}
+
+
+template <typename IT, typename VT>
+bool Matcher::concurrent_search(Graph<IT, VT>& graph, 
+                    Frontier<IT> & f,
+                    std::vector<Vertex<IT>> & vertexVector) {
+    Vertex<IT> *FromBase,*ToBase, *nextVertex;
+    IT FromBaseVertexID,ToBaseVertexID;
+    IT stackEdge, matchedEdge;
+    IT nextVertexIndex;
+
+    IT &time = f.time;
+    std::vector<IT> &stack = f.stack;
+    std::vector<Vertex<IT>> &tree = f.tree;
+    while(!stack.empty()){
+        stackEdge = stack.back();
+        stack.pop_back();
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        FromBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeFrom(graph,stackEdge),vertexVector);  
+        FromBase = &vertexVector[FromBaseVertexID];
+
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        ToBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeTo(graph,stackEdge),vertexVector);  
+        ToBase = &vertexVector[ToBaseVertexID];
+
+        // Edge is between two vertices in the same blossom, continue.
+        if (FromBase == ToBase)
+            continue;
+        if(!FromBase->IsEven()){
+            std::swap(FromBase,ToBase);
+            std::swap(FromBaseVertexID,ToBaseVertexID);
+        }
+        // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
+        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(*ToBase);
+            //graph.SetMatchField(ToBaseVertexID,stackEdge);
+            // I'll let the augment path method recover the path.
+            f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
+            return true;
+        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(*ToBase);
+
+            matchedEdge=graph.GetMatchField(ToBaseVertexID);
+            ToBase->MatchField=matchedEdge;
+            nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+            nextVertex = &vertexVector[nextVertexIndex];
+            if(nextVertex->AgeField!=-1)
+                return false;
+            nextVertex->AgeField=time++;
+            nextVertex->MatchField=matchedEdge;
+            tree.push_back(*nextVertex);
+
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+
+        } else if (ToBase->IsEven()) {
+            // Shrink Blossoms
+            Blossom::Shrink_Concurrent(graph,stackEdge,vertexVector,stack);
+        }
+
+    }
+    return true;
 }
 
 

@@ -10,6 +10,7 @@ public:
     IT BridgeField;
     IT ShoreField;
     IT AgeField;
+    IT MatchField;
     // For Reinitializing DSU Data
     IT LabelField;
     // DSU Data
@@ -24,6 +25,7 @@ public:
           BridgeField(-1), 
           ShoreField(-1), 
           AgeField(-1), 
+          MatchField(-1),
           LabelField(Label),
           LinkField(Label),
           SizeField(1), 
@@ -37,6 +39,7 @@ public:
           BridgeField(other.BridgeField),
           ShoreField(other.ShoreField), 
           AgeField(other.AgeField),
+          MatchField(other.MatchField),
           LabelField(other.LabelField),
           LinkField(other.LinkField),
           SizeField(other.SizeField), 
@@ -50,6 +53,7 @@ public:
           BridgeField(-1), 
           ShoreField(-1), 
           AgeField(-1),
+          MatchField(-1),
           LabelField(-1),
           LinkField(-1),
           SizeField(1), 
