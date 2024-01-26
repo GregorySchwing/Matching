@@ -23,7 +23,8 @@ public:
     static void match(Graph<IT, VT>& graph, Statistics<IT>& stats);
     template <typename IT, typename VT>
     static void match_wl(Graph<IT, VT>& graph, 
-                        int num_threads);
+                        int num_threads,
+                        int deferral_threshold);
     template <typename IT, typename VT>
     static void match_persistent_wl(Graph<IT, VT> &graph,
                                     moodycamel::ConcurrentQueue<IT> &worklist,
@@ -55,7 +56,8 @@ static void match_persistent_wl3(Graph<IT, VT>& graph,
                                 int tid,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms);
+                                std::atomic<IT> & num_contracting_blossoms,
+                                int deferral_threshold);
 
 private:
     template <typename IT, typename VT>
@@ -73,7 +75,7 @@ private:
     static bool capped_search(Graph<IT, VT>& graph, 
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
-                    IT max_depth=20);
+                    int max_depth);
 
     template <typename IT, typename VT>
     static void start_search(Graph<IT, VT>& graph, 
@@ -204,7 +206,8 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
 #include "ThreadFactory.h"
 template <typename IT, typename VT>
 void Matcher::match_wl(Graph<IT, VT>& graph, 
-                        int num_threads) {
+                        int num_threads,
+                        int deferral_threshold) {
     auto mt_thread_coordination_start = high_resolution_clock::now();
     size_t capacity = 1;
     moodycamel::ConcurrentQueue<IT> deferred_roots{capacity};
@@ -240,7 +243,8 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,
     worklists,deferred_roots,masterTID,graph,
     currentRoot,found_augmenting_path,
-    worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_contracting_blossoms);
+    worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_contracting_blossoms,
+    deferral_threshold);
 
     auto join_thread_start = high_resolution_clock::now();
     for (auto& t : workers) {
@@ -316,7 +320,8 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                                 int tid,
                                 std::atomic<IT> & num_enqueued,
                                 std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms) {
+                                std::atomic<IT> & num_contracting_blossoms,
+                                int deferral_threshold) {
     std::vector<Vertex<IT>> vertexVector;
     Vertex<IT> * TailOfAugmentingPath;
     std::vector<IT> path;
@@ -325,7 +330,6 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
     const size_t nworkers = worklists.size();
     IT expected = -1;
     IT desired = 0;
-    IT threshold = 20;
     // first thread to reach here claims master status.
     auto thread_match_start = high_resolution_clock::now();
     if (currentRoot.compare_exchange_strong(expected, desired)) {
@@ -346,7 +350,7 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
                 vertexVector[currentRoot].AgeField=f.time++;
                 f.tree.push_back(vertexVector[currentRoot]);
                 Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,currentRoot,f.stack);
-                defer = capped_search(graph,f,vertexVector,threshold);
+                defer = capped_search(graph,f,vertexVector,deferral_threshold);
                 if (defer){
                     deferred_roots.enqueue(currentRoot);
                     f.reinit(vertexVector);
@@ -747,7 +751,7 @@ template <typename IT, typename VT>
 bool Matcher::capped_search(Graph<IT, VT>& graph, 
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector,
-                    IT max_depth) {
+                    int max_depth) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
