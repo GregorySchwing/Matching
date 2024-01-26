@@ -130,6 +130,35 @@ int main(int argc, char **argv) {
     }
     std::cout << "Maximum matching is valid." << '\n';
 
+    // Write to CSV file
+    std::ofstream csvFile("results.csv", std::ios::app);  // Open the CSV file in append mode
+
+    if (csvFile.is_open()) {
+        // Check if the file is empty, if so, add a header line
+        if (csvFile.tellp() == 0) {
+            csvFile << "File, V, E, M, Mean Matching Time, Stdev, Threads, Iterations, Execution Mode, Deferral Threshold\n";
+        }
+        auto count = std::count_if(G.matching.begin(), G.matching.end(), [&](auto const& val) { return val > -1; });
+        // Extract the basename of the file from the path
+        std::filesystem::path filePath(result["file"].as<std::string>());
+        std::string fileBasename = filePath.stem().string();
+
+        // Append values to the CSV file
+        csvFile << fileBasename << ","
+                << G.getN() << ","
+                << G.getM() << ","
+                << count / 2 << ","
+                << mean << ","
+                << stdev << ","
+                << num_threads << ","
+                << num_iters << ","
+                << execution << ","
+                << deferral_threshold << std::endl;
+        csvFile.close();
+
+    } else {
+        std::cerr << "Error opening the CSV file." << std::endl;
+    }
 
     return 0;
 }
