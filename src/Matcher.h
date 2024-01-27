@@ -945,7 +945,7 @@ bool Matcher::concurrent_search(Graph<IT, VT>& graph,
     IT &time = f.time;
     std::vector<IT> &stack = f.stack;
     std::vector<Vertex<IT>> &tree = f.tree;
-    while(!stack.empty()){
+    while(!stack.empty() ){
         stackEdge = stack.back();
         stack.pop_back();
         // Necessary because vertices dont know their own index.
@@ -992,8 +992,9 @@ bool Matcher::concurrent_search(Graph<IT, VT>& graph,
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
 
         } else if (ToBase->IsEven()) {
-            // Shrink Blossoms
-            Blossom::Shrink_Concurrent(graph,stackEdge,vertexVector,stack);
+            // Handle mysterious error by trying again.
+            if(!Blossom::Shrink_Concurrent(graph,stackEdge,vertexVector,stack))
+                return false;
         }
 
     }
