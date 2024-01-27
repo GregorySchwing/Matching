@@ -561,8 +561,7 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
                     worklistMutexes[0].unlock();
                     //augment(graph,TailOfAugmentingPath,vertexVector,path);
                 } else {
-                    f.clear();
-                    break;
+                    valid = true;
                 }
             // Concurrent search failed due to augmentation problems.
             } else {
