@@ -57,6 +57,7 @@ public:
     const std::vector<VT> &original_vals;
     const size_t N,M;
     std::vector<std::atomic<IT>> matching;
+    std::vector<std::atomic<IT>> match_counter;
 
 private:    
     void read_file(const std::filesystem::path& in_path);
@@ -86,10 +87,14 @@ Graph<IT,VT>::Graph(std::vector<IT> &_indptr,
                     original_vals(_original_vals),
                     N(_N),
                     M(_M),
-                    matching(_N) {
+                    matching(_N),
+                    match_counter(_N) {
     // Assign all elements in the vector to false
     for (auto& atomicBool : matching) {
         atomicBool.store(-1);
+    }
+    for (auto& atomicBool : match_counter) {
+        atomicBool.store(0);
     }
 }
 
