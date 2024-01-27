@@ -561,11 +561,8 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
                     worklistMutexes[0].unlock();
                     //augment(graph,TailOfAugmentingPath,vertexVector,path);
                 } else {
-                    valid = f.verifyTree(vertexVector,graph.matching);
-                    if(valid){
-                        f.clear();
-                        break;
-                    }
+                    f.clear();
+                    break;
                 }
             // Concurrent search failed due to augmentation problems.
             } else {
