@@ -516,7 +516,7 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
     Frontier<IT> f;
     IT N = graph.getN();
     const size_t nworkers = worklists.size();
-    bool valid = true;
+    IT searches = 0;
     // first thread to reach here claims master status.
     auto thread_match_start = high_resolution_clock::now();
     auto allocate_start = high_resolution_clock::now();
@@ -543,7 +543,7 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     extract_path(graph,TailOfAugmentingPath,vertexVector,path);
                     worklistMutexes[0].lock();
-                    valid = true;
+                    bool valid = true;
                     for (auto E : path) {
                         //Match(EdgeFrom(E)) = E;
                         valid &= graph.GetMatchField(Graph<IT,VT>::EdgeFrom(graph,E))==vertexVector[Graph<IT,VT>::EdgeFrom(graph,E)].MatchField;
@@ -559,22 +559,34 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
                         }
                     }
                     worklistMutexes[0].unlock();
+                    if (!valid){
+                        f.reinit(vertexVector);
+                        f.clear();
+                        path.clear();
+                        continue;
+                    }
                     //augment(graph,TailOfAugmentingPath,vertexVector,path);
                 } else {
-                    valid = f.verifyTree(vertexVector,graph.matching);
+                    bool valid = f.verifyTree(vertexVector,graph.matching);
+                    if (!valid){
+                        f.reinit(vertexVector);
+                        f.clear();
+                        path.clear();
+                        continue;
+                    }
                 }
             // Concurrent search failed due to augmentation problems.
             } else {
-                valid = false;
+                // Move on
+                f.reinit(vertexVector);
+                f.clear();
+                path.clear();
+                continue;
             }
             f.reinit(vertexVector);
             f.clear();
             path.clear();
-            if (!valid){
-                continue;
-            } else {
-                break;
-            }
+            break;
         }
     }
     auto search_end = high_resolution_clock::now();
