@@ -529,7 +529,7 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
     auto search_start = high_resolution_clock::now();
     for (;(local_root=++currentRoot) < N;) {
         read_messages[tid]++;
-        while(!graph.IsMatched(local_root)) {
+        while(!graph.HasBeenMatched(local_root)) {
             vertexVector[local_root].AgeField=f.time++;
             f.tree.push_back(vertexVector[local_root]);
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,local_root,f.stack);
@@ -542,7 +542,8 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
                 if(f.TailOfAugmentingPathVertexIndex!=-1){
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     extract_path(graph,TailOfAugmentingPath,vertexVector,path);
-                    worklistMutexes[0].lock();
+                    /*
+                    worklistMutexes[0].lock();*/
                     valid = true;
                     for (auto E : path) {
                         //Match(EdgeFrom(E)) = E;
@@ -557,28 +558,22 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
                             //Match(EdgeTo(E)) = E;
                             graph.SetMatchField(Graph<IT,VT>::EdgeTo(graph,E),E);
                         }
+                        
                     }
+                    /*
                     worklistMutexes[0].unlock();
+                    */
                     //augment(graph,TailOfAugmentingPath,vertexVector,path);
                 } else {
-                    valid = f.verifyTree(vertexVector,graph.matching);
-                    if(valid){
-                        f.clear();
-                        break;
-                    }
+                    f.clear();
+                    break;
                 }
             // Concurrent search failed due to augmentation problems.
-            } else {
-                valid = false;
             }
             f.reinit(vertexVector);
             f.clear();
             path.clear();
-            if (!valid){
-                continue;
-            } else {
-                break;
-            }
+            break;
         }
     }
     auto search_end = high_resolution_clock::now();
@@ -970,7 +965,7 @@ bool Matcher::concurrent_search(Graph<IT, VT>& graph,
             std::swap(FromBaseVertexID,ToBaseVertexID);
         }
         // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
-        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+        if (!ToBase->IsReached() && !graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -978,7 +973,7 @@ bool Matcher::concurrent_search(Graph<IT, VT>& graph,
             // I'll let the augment path method recover the path.
             f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
             return true;
-        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+        } else if (!ToBase->IsReached() && graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);

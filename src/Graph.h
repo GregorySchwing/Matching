@@ -37,6 +37,7 @@ public:
             std::size_t M);*/
     size_t getN() const;
     size_t getM() const;
+    bool HasBeenMatched(size_t index) const;
     bool IsMatched(size_t index) const;
     IT GetMatchField(size_t index) const;
     void SetMatchField(size_t index,IT edge);
@@ -46,6 +47,7 @@ public:
                                         std::vector<IT> &stack,
                                         IT optionalEdge1=-1,
                                         IT optionalEdge2=-1);
+    inline IT Other(const IT edgeIndex, const IT vertexId) const;
     static inline IT Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId);
     static IT EdgeFrom(const Graph<IT, VT>& graph, const IT edgeIndex);
     static IT EdgeTo(const Graph<IT, VT>& graph, const IT edgeIndex);
@@ -125,21 +127,29 @@ size_t Graph<IT,VT>::getM() const{
 
 
 template <typename IT, typename VT>
-bool Graph<IT,VT>::IsMatched(size_t index) const{
+bool Graph<IT,VT>::HasBeenMatched(size_t index) const{
     //return matching[index].load()>-1;
-    return matching[index]>-1;
+    return matching[index].load()>-1;
 }
+
+
+template <typename IT, typename VT>
+bool Graph<IT,VT>::IsMatched(size_t index) const{
+    return matching[index].load()>-1 && matching[index].load()==matching[Other(matching[index],index)].load();
+    //return matching[index]>-1;
+}
+
 
 template <typename IT, typename VT>
 IT Graph<IT,VT>::GetMatchField(size_t index) const{
-    //return matching[index].load();
-    return matching[index];
+    return matching[index].load();
+    //return matching[index];
 }
 
 template <typename IT, typename VT>
 void Graph<IT,VT>::SetMatchField(size_t index,IT edge){
-    //matching[index].store(edge);
-    matching[index]=edge;
+    matching[index].store(edge);
+    //matching[index]=edge;
 }
 
 // Constructor
@@ -235,7 +245,7 @@ bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph,
         nextVertexIndex = Graph<IT, VT>::Other(graph, graph.indices[start], V_index);
 
         nextVertex = &vertexVector[nextVertexIndex];
-        if (!nextVertex->IsReached() && !graph.IsMatched(nextVertexIndex))
+        if (!nextVertex->IsReached() && !graph.HasBeenMatched(nextVertexIndex))
             return true;
     }
     return false;
@@ -264,6 +274,13 @@ template <typename IT, typename VT>
 inline IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
     // Using XOR to find the value that doesn't equal the third
     return graph.original_rows[edgeIndex] ^ graph.original_cols[edgeIndex] ^ vertexId;
+}
+
+// Static method to find the other endpoint of an edge
+template <typename IT, typename VT>
+inline IT Graph<IT,VT>::Other(const IT edgeIndex, const IT vertexId) const {
+    // Using XOR to find the value that doesn't equal the third
+    return original_rows[edgeIndex] ^ original_cols[edgeIndex] ^ vertexId;
 }
 
 // Static method to find the other endpoint of an edge

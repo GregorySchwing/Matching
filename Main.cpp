@@ -98,6 +98,12 @@ int main(int argc, char **argv) {
         auto match_end = high_resolution_clock::now();
         auto duration = duration_cast<seconds>(match_end - match_start);
         std::cout << "Maximum matching time: "<< duration.count() << " seconds" << '\n';
+        // Check if each value in match_count is either 0 or 2
+        for (size_t i = 0; i < G.matching.size(); ++i) {
+            if (!G.IsMatched(i)) {
+                G.SetMatchField(i,-1);
+            }
+        }
         auto count = std::count_if(G.matching.begin(), G.matching.end(),[&](auto const& val){ return val > -1; });
         std::cout << "Maximum matching size: "<<  count/2 << '\n';
         matching_times.push_back(duration.count());
@@ -125,9 +131,13 @@ int main(int argc, char **argv) {
             match_count[val]++;
         }
     }
+    auto true_count = std::count_if(match_count.begin(), match_count.end(),[&](auto const& val){ return val == 2; });
+    std::cout << "True matching size: "<<  true_count << '\n';
+
     // Check if each value in match_count is either 0 or 2
     for (size_t i = 0; i < match_count.size(); ++i) {
         if (match_count[i] != 0 && match_count[i] != 2) {
+            std::cout << i << " : " << match_count[i] << std::endl;
             throw std::runtime_error("Error: Match count is not equal to 0 or 2");
         }
     }
