@@ -10,6 +10,9 @@ public:
     Frontier(size_t _capacity);
 
     void reinit(std::vector<Vertex<IT>> &vertexVector);
+    bool verifyTree(std::vector<Vertex<IT>> &vertexVector,
+                    std::vector<std::atomic<IT>> &matching);
+
     void updateTree(std::vector<Vertex<IT>> &vertexVector);
     void updateVertexVector(std::vector<Vertex<IT>> &vertexVector);
     void split(Frontier<IT> & f2,IT type=0);
@@ -75,6 +78,20 @@ void Frontier<IT>::updateTree(std::vector<Vertex<IT>> &vertexVector){
         V.GroupRootField=vertexVector[V.LabelField].GroupRootField;
         V.SizeField=vertexVector[V.LabelField].SizeField;
     }
+}
+
+
+// Constructor
+template <typename IT>
+bool Frontier<IT>::verifyTree(std::vector<Vertex<IT>> &vertexVector,
+                            std::vector<std::atomic<IT>> &matching){ 
+    bool valid = true;     
+    for (auto &V : tree) {
+        valid&=V.MatchField==matching[V.LabelField].load();
+        if (!valid)
+            break;
+    }
+    return valid;
 }
 
 

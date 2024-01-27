@@ -86,6 +86,9 @@ int main(int argc, char **argv) {
         for (auto& atomicBool : G.matching) {
             atomicBool.store(-1);
         }
+        for (auto& atomicBool : G.match_counter) {
+            atomicBool.store(0);
+        }
         auto match_start = high_resolution_clock::now();
         if (execution){
             Matcher::match_wl<INDEX_TYPE, std::string>(G,num_threads,deferral_threshold);

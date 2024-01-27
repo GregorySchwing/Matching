@@ -59,6 +59,22 @@ static void match_persistent_wl3(Graph<IT, VT>& graph,
                                 std::atomic<IT> & num_contracting_blossoms,
                                 int deferral_threshold);
 
+template <typename IT, typename VT>
+static void match_persistent_wl4(Graph<IT, VT>& graph,
+                                std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
+                                std::atomic<IT> &masterTID,
+                                std::vector<size_t> &read_messages,
+                                std::atomic<bool>& found_augmenting_path,
+                                std::atomic<IT> & currentRoot,
+                                std::vector<std::mutex> &worklistMutexes,
+                                std::vector<std::condition_variable> &worklistCVs,
+                                int tid,
+                                std::atomic<IT> & num_enqueued,
+                                std::atomic<IT> & num_dequeued,
+                                std::atomic<IT> & num_contracting_blossoms,
+                                int deferral_threshold);
+
 private:
     template <typename IT, typename VT>
     static void search(Graph<IT, VT>& graph, 
@@ -115,7 +131,20 @@ private:
                     std::vector<Vertex<IT>> & vertexVector,
                     std::vector<IT> & path);
     template <typename IT, typename VT>
+    static void extract_path(Graph<IT, VT>& graph, 
+                    Vertex<IT> * TailOfAugmentingPath,
+                    std::vector<Vertex<IT>> & vertexVector,
+                    std::vector<IT> & path);
+    template <typename IT, typename VT>
     static void pathThroughBlossom(Graph<IT, VT>& graph, 
+                        // V
+                        const Vertex<IT> * TailOfAugmentingPath,
+                        const Vertex<IT> * TailOfAugmentingPathBase,
+                        std::vector<Vertex<IT>> & vertexVector,
+                        //std::list<IT> & path,
+                        std::vector<IT> & path);
+    template <typename IT, typename VT>
+    static void pathThroughBlossomConcurrent(Graph<IT, VT>& graph, 
                         // V
                         const Vertex<IT> * TailOfAugmentingPath,
                         const Vertex<IT> * TailOfAugmentingPathBase,
@@ -461,6 +490,100 @@ void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
     // This wakes up the workers.
     for (auto & cv:worklistCVs)
         cv.notify_one();
+}
+
+
+template <typename IT, typename VT>
+void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
+                                std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
+                                std::atomic<IT> &masterTID,
+                                std::vector<size_t> &read_messages,
+                                std::atomic<bool>& found_augmenting_path,
+                                std::atomic<IT> & currentRoot,
+                                std::vector<std::mutex> &worklistMutexes,
+                                std::vector<std::condition_variable> &worklistCVs,
+                                int tid,
+                                std::atomic<IT> & num_enqueued,
+                                std::atomic<IT> & num_dequeued,
+                                std::atomic<IT> & num_contracting_blossoms,
+                                int deferral_threshold) {
+    std::vector<Vertex<IT>> vertexVector;
+    Vertex<IT> * TailOfAugmentingPath;
+    std::vector<IT> path;
+    std::vector<IT> path_values;
+    std::vector<IT> path_keys;
+    Frontier<IT> f;
+    IT N = graph.getN();
+    const size_t nworkers = worklists.size();
+    bool valid = true;
+    // first thread to reach here claims master status.
+    auto thread_match_start = high_resolution_clock::now();
+    auto allocate_start = high_resolution_clock::now();
+    vertexVector.reserve(graph.getN());
+    std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
+    auto allocate_end = high_resolution_clock::now();
+    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+    std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+    IT local_root;
+    auto search_start = high_resolution_clock::now();
+    for (;(local_root=++currentRoot) < N;) {
+        read_messages[tid]++;
+        while(!graph.IsMatched(local_root)) {
+            vertexVector[local_root].AgeField=f.time++;
+            f.tree.push_back(vertexVector[local_root]);
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,local_root,f.stack);
+            
+            // If returned without an error stemming from
+            // someone else augmenting whilst I am searching
+            // Check if I found an AP.
+            if(concurrent_search(graph,f,vertexVector)){
+                // Successfuly found AP. try to match
+                if(f.TailOfAugmentingPathVertexIndex!=-1){
+                    TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                    extract_path(graph,TailOfAugmentingPath,vertexVector,path);
+                    worklistMutexes[0].lock();
+                    valid = true;
+                    for (auto E : path) {
+                        //Match(EdgeFrom(E)) = E;
+                        valid &= graph.GetMatchField(Graph<IT,VT>::EdgeFrom(graph,E))==vertexVector[Graph<IT,VT>::EdgeFrom(graph,E)].MatchField;
+                        //Match(EdgeTo(E)) = E;
+                        valid &= graph.GetMatchField(Graph<IT,VT>::EdgeTo(graph,E))==vertexVector[Graph<IT,VT>::EdgeTo(graph,E)].MatchField;
+                    }
+                    if (valid){
+                        for (auto E : path) {
+                            //Match(EdgeFrom(E)) = E;
+                            graph.SetMatchField(Graph<IT,VT>::EdgeFrom(graph,E),E);
+                            //Match(EdgeTo(E)) = E;
+                            graph.SetMatchField(Graph<IT,VT>::EdgeTo(graph,E),E);
+                        }
+                    }
+                    worklistMutexes[0].unlock();
+                    //augment(graph,TailOfAugmentingPath,vertexVector,path);
+                } else {
+                    valid = f.verifyTree(vertexVector,graph.matching);
+                    if(valid){
+                        f.clear();
+                        break;
+                    }
+                }
+            // Concurrent search failed due to augmentation problems.
+            } else {
+                valid = false;
+            }
+            f.reinit(vertexVector);
+            f.clear();
+            path.clear();
+            if (!valid){
+                continue;
+            } else {
+                break;
+            }
+        }
+    }
+    auto search_end = high_resolution_clock::now();
+    auto duration_search = duration_cast<seconds>(search_end - search_start);
+    std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
 }
 
 
@@ -826,7 +949,7 @@ bool Matcher::concurrent_search(Graph<IT, VT>& graph,
     IT &time = f.time;
     std::vector<IT> &stack = f.stack;
     std::vector<Vertex<IT>> &tree = f.tree;
-    while(!stack.empty()){
+    while(!stack.empty() ){
         stackEdge = stack.back();
         stack.pop_back();
         // Necessary because vertices dont know their own index.
@@ -873,8 +996,9 @@ bool Matcher::concurrent_search(Graph<IT, VT>& graph,
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
 
         } else if (ToBase->IsEven()) {
-            // Shrink Blossoms
-            Blossom::Shrink_Concurrent(graph,stackEdge,vertexVector,stack);
+            // Handle mysterious error by trying again.
+            if(!Blossom::Shrink_Concurrent(graph,stackEdge,vertexVector,stack))
+                return false;
         }
 
     }
@@ -1071,6 +1195,45 @@ void Matcher::augment(Graph<IT, VT>& graph,
 
 
 template <typename IT, typename VT>
+void Matcher::extract_path(Graph<IT, VT>& graph, 
+                    Vertex<IT> * TailOfAugmentingPath,
+                    std::vector<Vertex<IT>> & vertexVector,
+                    std::vector<IT> & path) {
+
+    IT edge;
+    // W
+    Vertex<IT>*nextVertex;
+    Vertex<IT>*nextVertexBase;
+    do
+    {
+        //ListPut(Tree(V), P);
+        edge = TailOfAugmentingPath->TreeField;
+        path.push_back(edge);
+
+        //W = Other(Tree(V), V);
+        ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+        auto nextVertexID = Graph<IT,VT>::Other(graph,edge,TailOfAugmentingPath_VertexID);
+        nextVertex = &vertexVector[nextVertexID];
+
+        //B = Base(Blossom(W));
+        // GJS
+        auto nextVertexBaseID = DisjointSetUnionHelper<IT>::getBase(nextVertexID,vertexVector);  
+
+        nextVertexBase = &vertexVector[nextVertexBaseID];
+        
+        // Path(W, B, P);
+        pathThroughBlossomConcurrent(graph,nextVertex,nextVertexBase,vertexVector,path);
+
+        //V = Other(Match(B), B);
+        ptrdiff_t nextVertexBase_VertexID = nextVertexBase - &vertexVector[0];
+        if (vertexVector[nextVertexBase_VertexID].MatchField>-1)
+            TailOfAugmentingPath = &vertexVector[Graph<IT,VT>::Other(graph,vertexVector[nextVertexBase_VertexID].MatchField,nextVertexBase_VertexID)];
+        else 
+            TailOfAugmentingPath = nullptr;
+    } while (TailOfAugmentingPath != nullptr);
+}
+
+template <typename IT, typename VT>
 void Matcher::pathThroughBlossom(Graph<IT, VT>& graph, 
                     // V
                     const Vertex<IT> * TailOfAugmentingPath,
@@ -1128,5 +1291,65 @@ void Matcher::pathThroughBlossom(Graph<IT, VT>& graph,
     }
 }
 
+
+template <typename IT, typename VT>
+void Matcher::pathThroughBlossomConcurrent(Graph<IT, VT>& graph, 
+                    // V
+                    const Vertex<IT> * TailOfAugmentingPath,
+                    const Vertex<IT> * TailOfAugmentingPathBase,
+                    std::vector<Vertex<IT>> & vertexVector,
+                    //std::list<IT> & path,
+                    std::vector<IT> & path) {
+    // W
+    Vertex<IT>*nextVertex;
+    // if (V != B)
+    if (TailOfAugmentingPath != TailOfAugmentingPathBase)
+    {
+        if (TailOfAugmentingPath->IsOdd())
+        {
+            // Path(Shore(V), Other(Match(V), V), P);
+            ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            pathThroughBlossomConcurrent(graph,
+                                &vertexVector[TailOfAugmentingPath->ShoreField],
+                                //&vertexVector[Graph<IT,VT>::Other(graph,graph.GetMatchField(TailOfAugmentingPath_VertexID),TailOfAugmentingPath_VertexID)],
+                                &vertexVector[Graph<IT,VT>::Other(graph,vertexVector[TailOfAugmentingPath_VertexID].MatchField,TailOfAugmentingPath_VertexID)],
+                                vertexVector,
+                                path);
+            //ListPut(Bridge(V), P);
+            path.push_back(TailOfAugmentingPath->BridgeField);
+            
+            //Path(Other(Bridge(V), Shore(V)), B, P);
+            pathThroughBlossomConcurrent(graph,
+                                &vertexVector[Graph<IT,VT>::Other(graph,TailOfAugmentingPath->BridgeField,TailOfAugmentingPath->ShoreField)],
+                                TailOfAugmentingPathBase,
+                                vertexVector,
+                                path);
+        }
+        else if (TailOfAugmentingPath->IsEven())
+        {
+            //W = Other(Match(V), V);
+            ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            //nextVertex=&vertexVector[Graph<IT,VT>::Other(graph,graph.GetMatchField(TailOfAugmentingPath_VertexID),TailOfAugmentingPath_VertexID)];
+            nextVertex=&vertexVector[Graph<IT,VT>::Other(graph,vertexVector[TailOfAugmentingPath_VertexID].MatchField,TailOfAugmentingPath_VertexID)];
+
+            //ListPut(Tree(W), P);
+            path.push_back(nextVertex->TreeField);
+
+            //Path(Other(Tree(W), W), B, P);
+            ptrdiff_t nextVertex_VertexID = nextVertex - &vertexVector[0];
+            pathThroughBlossomConcurrent(graph,
+                                &vertexVector[Graph<IT,VT>::Other(graph,nextVertex->TreeField,nextVertex_VertexID)],
+                                TailOfAugmentingPathBase,
+                                vertexVector,
+                                path);
+        }
+        else{
+            ptrdiff_t TailOfAugmentingPath_VertexID = TailOfAugmentingPath - &vertexVector[0];
+            ptrdiff_t TailOfAugmentingPathBase_VertexID = TailOfAugmentingPathBase - &vertexVector[0];
+            std::cerr << "(Path) Internal error. TailOfAugmentingPath_VertexID: " << TailOfAugmentingPath_VertexID<< " TailOfAugmentingPathBase_VertexID: " << TailOfAugmentingPathBase_VertexID << std::endl;
+            exit(1);
+        }
+    }
+}
 
 #endif

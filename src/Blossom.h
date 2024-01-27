@@ -21,7 +21,7 @@ class Blossom {
                             std::vector<IT> &stack);
 
         template <typename IT, typename VT>
-        static void Shrink_Concurrent(const Graph<IT, VT>& graph, 
+        static bool Shrink_Concurrent(const Graph<IT, VT>& graph, 
                             const IT stackEdge, 
                             std::vector<Vertex<IT>> & vertexVector, 
                             std::vector<IT> &stack);
@@ -268,7 +268,7 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
 
 
 template <typename IT, typename VT>
-void Blossom::Shrink_Concurrent(const Graph<IT, VT>& graph, 
+bool Blossom::Shrink_Concurrent(const Graph<IT, VT>& graph, 
                     const IT stackEdge, 
                     std::vector<Vertex<IT>> & vertexVector, 
                     std::vector<IT> &stack){
@@ -327,8 +327,7 @@ void Blossom::Shrink_Concurrent(const Graph<IT, VT>& graph,
         // T = Tree(W);
         treeEdge = EdgeToVertex->TreeField;
         if (treeEdge < 0){
-            printf("MASSIVE ERROR!!!\n");
-            exit(1);
+            return false;
         }
         if (!Found){
             Found = Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,EdgeToVertexID,stack,matchedEdge,treeEdge);
@@ -351,6 +350,7 @@ void Blossom::Shrink_Concurrent(const Graph<IT, VT>& graph,
         // B = Base(X);
         FromBaseID = DisjointSetUnionHelper<IT>::getBase(EdgeFromVertexID,vertexVector);
     }
+    return true;
 }
 
 template <typename IT>
