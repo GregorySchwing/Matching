@@ -528,7 +528,7 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
     IT local_root;
     auto search_start = high_resolution_clock::now();
     for (;(local_root=++currentRoot) < N;) {
-        searches++;
+        read_messages[tid]++;
         while(!graph.IsMatched(local_root)) {
             vertexVector[local_root].AgeField=f.time++;
             f.tree.push_back(vertexVector[local_root]);
@@ -559,9 +559,29 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
                         }
                     }
                     worklistMutexes[0].unlock();
+                    if (!valid){
+                        f.reinit(vertexVector);
+                        f.clear();
+                        path.clear();
+                        continue;
+                    }
                     //augment(graph,TailOfAugmentingPath,vertexVector,path);
+                } else {
+                    bool valid = f.verifyTree(vertexVector,graph.matching);
+                    if (!valid){
+                        f.reinit(vertexVector);
+                        f.clear();
+                        path.clear();
+                        continue;
+                    }
                 }
             // Concurrent search failed due to augmentation problems.
+            } else {
+                // Move on
+                f.reinit(vertexVector);
+                f.clear();
+                path.clear();
+                continue;
             }
             f.reinit(vertexVector);
             f.clear();
@@ -572,7 +592,6 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
     auto search_end = high_resolution_clock::now();
     auto duration_search = duration_cast<seconds>(search_end - search_start);
     std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
-    std::cout << "TID(" << tid << ") Number of searches: "<< searches << '\n';
 }
 
 
