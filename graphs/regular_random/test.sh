@@ -15,10 +15,10 @@ filenameMTX="${filenameKece}.mtx"
 python generate_random_graph.py $VERTICES $deg $filenameKece matrix_market
 #./generate ${VERTICES} ${deg} ${filenameMTX}
 #../../src/matching $filenameKece
-/home/greg/Matching/build/matcher $filenameMTX 1 1 0
-/home/greg/Matching/build/matcher $filenameMTX 1 2 1
-/home/greg/Matching/build/matcher $filenameMTX 1 4 1
-/home/greg/Matching/build/matcher $filenameMTX 1 8 1
+~/Matching/build/matcher $filenameMTX 1 1 0
+~/Matching/build/matcher $filenameMTX 1 2 1
+~/Matching/build/matcher $filenameMTX 1 4 1
+~/Matching/build/matcher $filenameMTX 1 8 1
 #/home/greg/mvm/src/cpu $filenameMTX
 #/home/greg/mvm/src/a.out $filenameMTX
 #/home/greg/mvm/src/a.out $filenameMTX 60 48
