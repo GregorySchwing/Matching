@@ -1,10 +1,9 @@
 #!/bin/bash
 
-
 C=10
-for deg in 2 3 5 10
+for i in {6..8}
 do
-for i in {6..6}
+for deg in 2 3 5 10
 do
 for j in {5..5}
 do
@@ -15,10 +14,10 @@ filenameMTX="${filenameKece}.mtx"
 python generate_random_graph.py $VERTICES $deg $filenameKece matrix_market
 #./generate ${VERTICES} ${deg} ${filenameMTX}
 #../../src/matching $filenameKece
-~/Matching/build/matcher $filenameMTX 1 1 0
-~/Matching/build/matcher $filenameMTX 1 2 1
-~/Matching/build/matcher $filenameMTX 1 4 1
-~/Matching/build/matcher $filenameMTX 1 8 1
+~/Matching/build/matcher $filenameMTX 5 1 0
+~/Matching/build/matcher $filenameMTX 5 2 1
+~/Matching/build/matcher $filenameMTX 5 4 1
+~/Matching/build/matcher $filenameMTX 5 8 1
 #/home/greg/mvm/src/cpu $filenameMTX
 #/home/greg/mvm/src/a.out $filenameMTX
 #/home/greg/mvm/src/a.out $filenameMTX 60 48
