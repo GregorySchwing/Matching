@@ -111,7 +111,7 @@ void write_mtx(const SetPair& edges, const std::string& filename) {
 
     // Writing header
     file << "%%MatrixMarket matrix coordinate pattern symmetric\n";
-    file << edges.size() << " " << edges.size() << " " << edges.size() * 2 << "\n";
+    file << edges.size() << " " << edges.size() << " " << edges.size() << "\n";
 
     // Writing edges
     for (const auto& [a, b] : edges) {
