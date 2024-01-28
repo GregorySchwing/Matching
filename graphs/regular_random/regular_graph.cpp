@@ -9,7 +9,7 @@
 using Vec     = std::vector<int>;
 using SetPair = std::set<std::pair<int,int>>;
 using Map     = std::map<int,int>;
-
+std::mt19937 rng;  // Mersenne Twister 19937 generator
 
 void print_edges(const SetPair& ed){
 	std::cout << "[";
@@ -57,7 +57,7 @@ SetPair _random_regular_graph(int n, int d) {
 	}
 	while (v.size() > 0){
 		Map potential_edges {};
-		std::shuffle(v.begin(), v.end(), std::random_device());
+		std::shuffle(v.begin(), v.end(), rng);  // Use the random number generator
 			for (auto it = v.begin(); it != v.end(); ++it) {
 				int s1,s2;
 				s1 = *it;
@@ -123,6 +123,7 @@ void write_mtx(const SetPair& edges, const std::string& filename) {
 
 int main(int argc, char const *argv[])
 {
+	rng.seed(123);
 	int n = atoi(argv[1]); // Number of nodes (size of the graph)
 	int d = atoi(argv[2]); // degree of each node in the graph
 	std::string output_file = argv[3];
