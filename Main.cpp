@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
     if (csvFile.is_open()) {
         // Check if the file is empty, if so, add a header line
         if (csvFile.tellp() == 0) {
-            csvFile << "File, V, E, M, Mean Matching Time, Stdev, Threads, Iterations, Execution Mode, Deferral Threshold\n";
+            csvFile << "File,V,E,M,MeanMatchingTime,Stdev,Threads,Iterations,ExecutionMode,ParseGraphTime,CreateCSRTime\n";
         }
         auto count = std::count_if(G.matching.begin(), G.matching.end(), [&](auto const& val) { return val > -1; });
         // Extract the basename of the file from the path
@@ -156,7 +156,8 @@ int main(int argc, char **argv) {
                 << num_threads << ","
                 << num_iters << ","
                 << execution << ","
-                << deferral_threshold << std::endl;
+                << FR.parse_graph_duration.count() << ","
+                << FR.create_csr_duration.count() << std::endl;
         csvFile.close();
 
     } else {

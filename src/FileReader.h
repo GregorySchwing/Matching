@@ -25,7 +25,8 @@ public:
     std::vector<IT> original_cols;
     std::vector<VT> original_vals;
     size_t N,M;
-
+    std::chrono::milliseconds parse_graph_duration;
+    std::chrono::milliseconds create_csr_duration;
 private:    
     void read_file(const std::filesystem::path& in_path);
     void generateCSR(const std::vector<IT>& rows, const std::vector<IT>& columns, IT numVertices, std::vector<IT>& rowPtr, std::vector<IT>& colIndex);
@@ -58,11 +59,13 @@ void FileReader<IT,VT>::read_file(const std::filesystem::path& in_path) {
     fmm::read_matrix_market_triplet(f, header, original_rows, original_cols, original_vals, options);
     auto f_to_el_end = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(f_to_el_end - f_to_el_start);
+    parse_graph_duration=duration;
     std::cout << "MTX to EdgeList conversion time: "<< duration.count() << " milliseconds" << std::endl;
     auto el_to_csr_start = high_resolution_clock::now();
     generateCSR(original_rows, original_cols, header.ncols, indptr, indices);
     auto el_to_csr_end = high_resolution_clock::now();
     duration = duration_cast<milliseconds>(el_to_csr_end - el_to_csr_start);
+    create_csr_duration=duration;
     // To get the value of duration use the count()
     // member function on the duration object
     std::cout << "EdgeList to CSR conversion time: "<< duration.count() << " milliseconds" << std::endl;
