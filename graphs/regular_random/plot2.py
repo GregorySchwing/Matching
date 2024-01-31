@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import matplotlib as mpl
+mpl.rc('axes.formatter', use_mathtext=True)
 # Load the CSV file into a DataFrame
 df = pd.read_csv('results.csv')
 # Extract degree from the 'File' column
@@ -18,7 +19,6 @@ num_rows = int(len(unique_degrees) / num_cols) + len(unique_degrees) % num_cols 
 
 # Create square-shaped subplots
 fig, axs = plt.subplots(num_rows, num_cols, sharex=False, sharey=False, figsize=(16, 10))
-
 # Flatten the axs array if needed
 axs = axs.flatten()
 
@@ -41,15 +41,17 @@ for i, ax in enumerate(axs):
                 capsize=5,  # Specify the cap size for error bars,
             )
         # Set labels and title for the subplot
-        ax.set_title(f'Degree {degree}', fontsize=16)
-        ax.set_xlabel('V', fontsize=12)
-        ax.set_ylabel('MeanMatchingTime', fontsize=12)
+        ax.set_title(f'Degree {degree}', fontsize=24)
+        ax.set_xlabel('V', fontsize=20)
+        ax.set_ylabel('Mean Matching Time', fontsize=20)
+        ax.tick_params(axis='both', which='major', labelsize=16)
+        ax.ticklabel_format(style = 'plain')
 
         # Add legend for the subplot
         #ax.legend(loc='upper left',fontsize=16)
 handles, labels = plt.gca().get_legend_handles_labels()
 by_label = dict(zip(labels, handles))
-lgd = fig.legend(by_label.values(), by_label.keys(),loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=4, fontsize=16)
+lgd = fig.legend(by_label.values(), by_label.keys(),loc='upper center', bbox_to_anchor=(0.5, 1.08), ncol=4, fontsize=20)
 # Show the plot
 plt.tight_layout()
 # Save the figure
