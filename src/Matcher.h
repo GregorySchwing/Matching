@@ -44,25 +44,8 @@ public:
                                     std::atomic<IT> & num_contracting_blossoms);
 
 template <typename IT, typename VT>
-static void match_persistent_wl3(Graph<IT, VT>& graph,
-                                std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
-                                std::atomic<IT> &masterTID,
-                                std::vector<size_t> &read_messages,
-                                std::atomic<bool>& found_augmenting_path,
-                                std::atomic<IT> & currentRoot,
-                                std::vector<std::mutex> &worklistMutexes,
-                                std::vector<std::condition_variable> &worklistCVs,
-                                int tid,
-                                std::atomic<IT> & num_enqueued,
-                                std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms,
-                                int deferral_threshold);
-
-template <typename IT, typename VT>
 static void match_persistent_wl4(Graph<IT, VT>& graph,
                                 std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
@@ -78,7 +61,6 @@ static void match_persistent_wl4(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 static void match_persistent_wl5(Graph<IT, VT>& graph,
                                 std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
@@ -101,11 +83,6 @@ private:
     static bool concurrent_search(Graph<IT, VT>& graph, 
                         FrontierType<IT, StackType> & f,
                         std::vector<Vertex<IT>> & vertexVector);
-
-    template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType = Stack>
-    static bool concurrent_search_generic(Graph<IT, VT>& graph, 
-                    FrontierType<IT, StackType> & f,
-                    std::vector<Vertex<IT>> & vertexVector);
 
     template <typename IT, typename VT>
     static bool capped_search(Graph<IT, VT>& graph, 
@@ -259,7 +236,6 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
                         int deferral_threshold) {
     auto mt_thread_coordination_start = high_resolution_clock::now();
     size_t capacity = 1;
-    moodycamel::ConcurrentQueue<IT> deferred_roots{capacity};
     std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> worklists;
     worklists.reserve(num_threads);
     for (int i = 0; i < num_threads; ++i) {
@@ -290,7 +266,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     //spinning.resize(num_threads,false);
     // Access the graph elements as needed
     ThreadFactory::create_threads_concurrentqueue_wl<IT,VT>(workers, num_threads,read_messages,
-    worklists,deferred_roots,masterTID,graph,
+    worklists,masterTID,graph,
     currentRoot,found_augmenting_path,
     worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_contracting_blossoms,
     deferral_threshold);
@@ -357,166 +333,8 @@ void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
 }
 
 template <typename IT, typename VT>
-void Matcher::match_persistent_wl3(Graph<IT, VT>& graph,
-                                std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
-                                std::atomic<IT> &masterTID,
-                                std::vector<size_t> &read_messages,
-                                std::atomic<bool>& found_augmenting_path,
-                                std::atomic<IT> & currentRoot,
-                                std::vector<std::mutex> &worklistMutexes,
-                                std::vector<std::condition_variable> &worklistCVs,
-                                int tid,
-                                std::atomic<IT> & num_enqueued,
-                                std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms,
-                                int deferral_threshold) {
-    std::vector<Vertex<IT>> vertexVector;
-    Vertex<IT> * TailOfAugmentingPath;
-    std::vector<IT> path;
-    Frontier<IT> f;
-    const size_t N = graph.getN();
-    const size_t nworkers = worklists.size();
-    IT expected = -1;
-    IT desired = 0;
-    // first thread to reach here claims master status.
-    auto thread_match_start = high_resolution_clock::now();
-    if (currentRoot.compare_exchange_strong(expected, desired)) {
-        masterTID.store(tid);
-        auto allocate_start = high_resolution_clock::now();
-        vertexVector.reserve(graph.getN());
-        std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
-        auto allocate_end = high_resolution_clock::now();
-        auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
-        std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
-
-        //const size_t N = 5;
-        bool defer;
-        auto search_start = high_resolution_clock::now();
-        for (; currentRoot < N; ++currentRoot) {
-            if (!graph.IsMatched(currentRoot)) {
-
-                vertexVector[currentRoot].AgeField=f.time++;
-                f.tree.push_back(vertexVector[currentRoot]);
-                Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,currentRoot,f.stack);
-                defer = capped_search(graph,f,vertexVector,deferral_threshold);
-                if (defer){
-                    deferred_roots.enqueue(currentRoot);
-                    f.reinit(vertexVector);
-                    f.clear();
-                } else {
-                    if (f.TailOfAugmentingPathVertexIndex!=-1){
-                        TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
-                        augment(graph,TailOfAugmentingPath,vertexVector,path);
-                        f.reinit(vertexVector);
-                        path.clear();
-                        f.clear();
-                    } else {
-                        f.clear();
-                    }
-                }
-            }
-        }
-        auto search_end = high_resolution_clock::now();
-        auto duration_search = duration_cast<seconds>(search_end - search_start);
-        std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
-        std::cout << "TID(" << tid << ") Number of deferred searches: "<< deferred_roots.size_approx() << '\n';
-
-        // This wakes up the workers.
-        for (auto & cv:worklistCVs)
-            cv.notify_one();
-
-        IT def_root;
-        num_enqueued++;
-        while(deferred_roots.try_dequeue(def_root)){
-            // Could've been matched.
-            //printf("Restarting search of root %d defferred roots remaining %ld\n",def_root, deferred_roots.size_approx());
-            if (graph.IsMatched(def_root)) {
-                continue;
-            }
-            IT nextVertexIndex;
-            Vertex<IT>* nextVertex;
-            found_augmenting_path.store(false);
-            int workerID = tid;
-            // Push edges onto stack, breaking if that stackEdge is a solution.
-            for (IT start = graph.indptr[def_root]; start < graph.indptr[def_root + 1]; ++start) {
-                Frontier<IT> f;
-                vertexVector[def_root].AgeField=f.time++;
-                f.tree.push_back(vertexVector[def_root]);
-                f.stack.push_back(graph.indices[start]);
-                workerID++;
-                if (workerID%nworkers == tid) workerID++;
-                num_enqueued++;
-                worklists[workerID%nworkers].enqueue(f);
-                f.reinit(vertexVector);
-                f.clear();
-                nextVertexIndex = Graph<IT, VT>::Other(graph, graph.indices[start], def_root);
-                nextVertex = &vertexVector[nextVertexIndex];
-                if (!nextVertex->IsReached() && !graph.IsMatched(nextVertexIndex))
-                    break;
-                
-            }
-            while(num_enqueued.load()!=num_dequeued.load()+1){}
-        }
-        num_dequeued++;
-
-    } else {
-        // Other threads wait for initial pass to complete.
-        while(currentRoot.load(std::memory_order_relaxed)!=N){
-            std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
-            // If the worklist is empty (size_approx == 0), wait for a signal
-            // If the algorithm is finished (CR==N), return
-            worklistCVs[tid].wait(lock, [&] { return currentRoot.load(std::memory_order_relaxed)==N; });
-        }
-
-        while(deferred_roots.size_approx()!=0 || num_enqueued.load()!=num_dequeued.load()){
-            //std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
-            // If the worklist is empty (size_approx == 0), wait for a signal
-            //worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx(); });
-            while(worklists[tid].try_dequeue(f)){
-                //std::cout << "TID(" << tid << ") Continuing search rooted at: "<< f.tree.front().LabelField << " deferred roots remaining: " << deferred_roots.size_approx() <<'\n';
-                read_messages[tid]++;
-                if (!graph.IsMatched(f.tree.front().LabelField)) {
-                    // Lazy allocation of vv when thread starts working.
-                    if(vertexVector.capacity()==0){
-                        auto allocate_start = high_resolution_clock::now();
-                        vertexVector.reserve(graph.getN());
-                        std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
-                        auto allocate_end = high_resolution_clock::now();
-                        auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
-                        std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
-                    }
-                    f.updateVertexVector(vertexVector);
-                    // If returned without an error stemming from
-                    // someone else augmenting whilst I am searching
-                    // Check if I found an AP.
-                    if(concurrent_search(graph,f,vertexVector)){
-                        if(f.TailOfAugmentingPathVertexIndex!=-1){
-                            bool expected = false;
-                            if(graph.GetMatchField(f.tree.front().LabelField) && found_augmenting_path.compare_exchange_strong(expected,true)){
-                                TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
-                                augment(graph,TailOfAugmentingPath,vertexVector,path);
-                            }
-                        }
-                    }
-                    f.reinit(vertexVector);
-                    f.clear();
-                    path.clear();
-                }
-                num_dequeued++;
-            }
-        }
-    }
-    // This wakes up the workers.
-    for (auto & cv:worklistCVs)
-        cv.notify_one();
-}
-
-
-template <typename IT, typename VT>
 void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
                                 std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
@@ -606,7 +424,6 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
                                 std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
@@ -1038,14 +855,6 @@ bool Matcher::capped_search(Graph<IT, VT>& graph,
         if (stack.size()>max_depth)
             return true;
     }
-    return false;
-}
-
-
-template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType = Stack>
-bool Matcher::concurrent_search_generic(Graph<IT, VT>& graph, 
-                    FrontierType<IT, StackType> & f,
-                    std::vector<Vertex<IT>> & vertexVector) {
     return false;
 }
 

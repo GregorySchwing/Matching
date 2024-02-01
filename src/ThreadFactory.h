@@ -49,12 +49,12 @@ void print_results(const BenchResult &results) {
 class ThreadFactory {
 public:
 
-    template <typename IT, typename VT>
+    //template <typename IT, typename VT>
+    template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType=std::vector>
     static bool create_threads_concurrentqueue_wl(std::vector<std::thread> &threads,
                                                     unsigned num_threads,
                                                     std::vector<size_t> &read_messages,
-                                                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                                    moodycamel::ConcurrentQueue<IT> &deferred_roots,
+                                                    std::vector<moodycamel::ConcurrentQueue<FrontierType<IT, StackType>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                                     std::atomic<IT> &masterTID,
                                                     Graph<IT, VT> &graph,
                                                     std::atomic<IT> & currentRoot,
@@ -70,12 +70,12 @@ public:
 
 
 
-template <typename IT, typename VT>
+//template <typename IT, typename VT>
+template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType>
 bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &threads,
                                                     unsigned num_threads,
                                                     std::vector<size_t> &read_messages,
-                                                    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
-                                                    moodycamel::ConcurrentQueue<IT> &deferred_roots,
+                                                    std::vector<moodycamel::ConcurrentQueue<FrontierType<IT, StackType>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                                     std::atomic<IT> &masterTID,
                                                     Graph<IT, VT> &graph,
                                                     std::atomic<IT> & currentRoot,
@@ -92,14 +92,14 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
         //threads[i] = std::thread(&Matcher::hello_world, i);
         if (deferral_threshold) {
           threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl5<IT,VT>(graph,
-            worklists,deferred_roots,masterTID,
+            worklists,masterTID,
             read_messages,found_augmenting_path,
             currentRoot,
             worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_contracting_blossoms,
             deferral_threshold); } );
         } else {
           threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl4<IT,VT>(graph,
-            worklists,deferred_roots,masterTID,
+            worklists,masterTID,
             read_messages,found_augmenting_path,
             currentRoot,
             worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_contracting_blossoms,
