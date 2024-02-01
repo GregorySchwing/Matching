@@ -127,20 +127,20 @@ size_t Graph<IT,VT>::getM() const{
 
 template <typename IT, typename VT>
 bool Graph<IT,VT>::IsMatched(size_t index) const{
-    //return matching[index].load()>-1;
-    return matching[index]>-1;
+    return matching[index].load()>-1;
+    //return matching[index]>-1;
 }
 
 template <typename IT, typename VT>
 IT Graph<IT,VT>::GetMatchField(size_t index) const{
-    //return matching[index].load();
-    return matching[index];
+    return matching[index].load();
+    //return matching[index];
 }
 
 template <typename IT, typename VT>
 void Graph<IT,VT>::SetMatchField(size_t index,IT edge){
-    //matching[index].store(edge);
-    matching[index]=edge;
+    matching[index].store(edge);
+    //matching[index]=edge;
 }
 
 // Constructor

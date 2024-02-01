@@ -437,55 +437,18 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
     auto allocate_end = high_resolution_clock::now();
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
-    IT local_root;
     auto search_start = high_resolution_clock::now();
-    for (;(local_root=++currentRoot) < N;) {
-        read_messages[tid]++;
-        while(!graph.IsMatched(local_root)) {
-            vertexVector[local_root].AgeField=f.time++;
-            f.tree.push_back(vertexVector[local_root]);
-            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,local_root,f.stack);
-            
-            // If returned without an error stemming from
-            // someone else augmenting whilst I am searching
-            // Check if I found an AP.
-            if(concurrent_search(graph,f,vertexVector)){
-                // Successfuly found AP. try to match
-                if(f.TailOfAugmentingPathVertexIndex!=-1){
-                    TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
-                    extract_path(graph,TailOfAugmentingPath,vertexVector,path);
-                    worklistMutexes[0].lock();
-                    valid = true;
-                    for (auto E : path) {
-                        //Match(EdgeFrom(E)) = E;
-                        valid &= graph.GetMatchField(Graph<IT,VT>::EdgeFrom(graph,E))==vertexVector[Graph<IT,VT>::EdgeFrom(graph,E)].MatchField;
-                        //Match(EdgeTo(E)) = E;
-                        valid &= graph.GetMatchField(Graph<IT,VT>::EdgeTo(graph,E))==vertexVector[Graph<IT,VT>::EdgeTo(graph,E)].MatchField;
-                    }
-                    if (valid){
-                        for (auto E : path) {
-                            //Match(EdgeFrom(E)) = E;
-                            graph.SetMatchField(Graph<IT,VT>::EdgeFrom(graph,E),E);
-                            //Match(EdgeTo(E)) = E;
-                            graph.SetMatchField(Graph<IT,VT>::EdgeTo(graph,E),E);
-                        }
-                    }
-                    worklistMutexes[0].unlock();
-                    //augment(graph,TailOfAugmentingPath,vertexVector,path);
-                } else {
-                    valid = true;
-                }
-            // Concurrent search failed due to augmentation problems.
-            } else {
-                valid = false;
+    while(currentRoot.load(std::memory_order_relaxed)<N){
+        if (worklists[tid].try_dequeue(f)){
+            if(!graph.IsMatched(f.root)) {
+
             }
-            f.reinit(vertexVector);
-            f.clear();
-            path.clear();
-            if (!valid){
-                continue;
-            } else {
-                break;
+        } else {
+            f.root=++currentRoot;
+            if(!graph.IsMatched(f.root)) {
+                vertexVector[f.root].AgeField=f.time++;
+                f.tree.push_back(vertexVector[f.root]);
+                Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,f.root,f.stack);
             }
         }
     }

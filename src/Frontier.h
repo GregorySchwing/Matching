@@ -21,6 +21,7 @@ public:
     // Other member functions...
     IT time;
     IT TailOfAugmentingPathVertexIndex;
+    IT root;
     StackType<IT> stack;
     //std::vector<IT> stack;
     std::vector<Vertex<IT>> tree;
