@@ -98,12 +98,11 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
             worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_contracting_blossoms,
             deferral_threshold); } );
         } else {
-          threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl4<IT,VT>(graph,
-            worklists,masterTID,
+          threads[i] = std::thread( [&,i]{ Matcher::match_persistent_wl4<IT,VT>(graph,
+            masterTID,
             read_messages,found_augmenting_path,
             currentRoot,
-            worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_contracting_blossoms,
-            deferral_threshold); } );
+            worklistMutexes,worklistCVs,i); } );
         }
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
         // only CPU i as set.

@@ -45,18 +45,13 @@ public:
 
 template <typename IT, typename VT>
 static void match_persistent_wl4(Graph<IT, VT>& graph,
-                                std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
                                 std::atomic<IT> & currentRoot,
                                 std::vector<std::mutex> &worklistMutexes,
                                 std::vector<std::condition_variable> &worklistCVs,
-                                int tid,
-                                std::atomic<IT> & num_enqueued,
-                                std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms,
-                                int deferral_threshold);
+                                int tid);
 
 template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType=std::vector>
 static void match_persistent_wl5(Graph<IT, VT>& graph,
@@ -236,11 +231,11 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
                         int deferral_threshold) {
     auto mt_thread_coordination_start = high_resolution_clock::now();
     size_t capacity = 1;
-    std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> worklists;
+    std::vector<moodycamel::ConcurrentQueue<Frontier<IT,std::deque>, moodycamel::ConcurrentQueueDefaultTraits>> worklists;
     worklists.reserve(num_threads);
     for (int i = 0; i < num_threads; ++i) {
         // Initialize each queue with the desired parameters
-        worklists.emplace_back(moodycamel::ConcurrentQueue<Frontier<IT>>{capacity});
+        worklists.emplace_back(moodycamel::ConcurrentQueue<Frontier<IT,std::deque>>{capacity});
     }
     
     std::vector<std::mutex> worklistMutexes(num_threads);
@@ -334,26 +329,18 @@ void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
 
 template <typename IT, typename VT>
 void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
-                                std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
                                 std::atomic<IT> & currentRoot,
                                 std::vector<std::mutex> &worklistMutexes,
                                 std::vector<std::condition_variable> &worklistCVs,
-                                int tid,
-                                std::atomic<IT> & num_enqueued,
-                                std::atomic<IT> & num_dequeued,
-                                std::atomic<IT> & num_contracting_blossoms,
-                                int deferral_threshold) {
+                                int tid) {
     std::vector<Vertex<IT>> vertexVector;
     Vertex<IT> * TailOfAugmentingPath;
     std::vector<IT> path;
-    std::vector<IT> path_values;
-    std::vector<IT> path_keys;
     Frontier<IT> f;
     IT N = graph.getN();
-    const size_t nworkers = worklists.size();
     bool valid = true;
     // first thread to reach here claims master status.
     auto thread_match_start = high_resolution_clock::now();
@@ -438,8 +425,6 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
     std::vector<Vertex<IT>> vertexVector;
     Vertex<IT> * TailOfAugmentingPath;
     std::vector<IT> path;
-    std::vector<IT> path_values;
-    std::vector<IT> path_keys;
     Frontier<IT,std::deque> f;
     IT N = graph.getN();
     const size_t nworkers = worklists.size();
