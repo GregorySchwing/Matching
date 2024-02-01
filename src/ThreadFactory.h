@@ -90,13 +90,21 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
     //Matcher::search(graph,0,*(frontiers[0]));
     for (unsigned i = 0; i < num_threads; ++i) {
         //threads[i] = std::thread(&Matcher::hello_world, i);
-        threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl4<IT,VT>(graph,
-          worklists,deferred_roots,masterTID,
-          read_messages,found_augmenting_path,
-          currentRoot,
-          worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_contracting_blossoms,
-          deferral_threshold); } );
-
+        if (deferral_threshold) {
+          threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl5<IT,VT>(graph,
+            worklists,deferred_roots,masterTID,
+            read_messages,found_augmenting_path,
+            currentRoot,
+            worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_contracting_blossoms,
+            deferral_threshold); } );
+        } else {
+          threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl4<IT,VT>(graph,
+            worklists,deferred_roots,masterTID,
+            read_messages,found_augmenting_path,
+            currentRoot,
+            worklistMutexes,worklistCVs,i,num_enqueued,num_dequeued,num_contracting_blossoms,
+            deferral_threshold); } );
+        }
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
         // only CPU i as set.
         cpu_set_t cpuset;

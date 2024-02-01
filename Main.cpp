@@ -40,8 +40,8 @@ int main(int argc, char **argv) {
 
     // Check if 'deferral_threshold' is a positive integer
     int deferral_threshold = result["deferral_threshold"].as<int>();
-    if (deferral_threshold <= 0) {
-        std::cerr << "Error: 'deferral_threshold' must be a positive integer." << std::endl;
+    if (deferral_threshold < 0) {
+        std::cerr << "Error: 'deferral_threshold' must be a non-negative integer." << std::endl;
         return 1;
     }
 

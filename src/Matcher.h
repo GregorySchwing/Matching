@@ -75,6 +75,21 @@ static void match_persistent_wl4(Graph<IT, VT>& graph,
                                 std::atomic<IT> & num_contracting_blossoms,
                                 int deferral_threshold);
 
+template <typename IT, typename VT>
+static void match_persistent_wl5(Graph<IT, VT>& graph,
+                                std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
+                                std::atomic<IT> &masterTID,
+                                std::vector<size_t> &read_messages,
+                                std::atomic<bool>& found_augmenting_path,
+                                std::atomic<IT> & currentRoot,
+                                std::vector<std::mutex> &worklistMutexes,
+                                std::vector<std::condition_variable> &worklistCVs,
+                                int tid,
+                                std::atomic<IT> & num_enqueued,
+                                std::atomic<IT> & num_dequeued,
+                                std::atomic<IT> & num_contracting_blossoms,
+                                int deferral_threshold);
 private:
     template <typename IT, typename VT>
     static void search(Graph<IT, VT>& graph, 
@@ -582,6 +597,137 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
     std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
 }
 
+
+template <typename IT, typename VT>
+void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
+                                std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                                moodycamel::ConcurrentQueue<IT> &deferred_roots,
+                                std::atomic<IT> &masterTID,
+                                std::vector<size_t> &read_messages,
+                                std::atomic<bool>& found_augmenting_path,
+                                std::atomic<IT> & currentRoot,
+                                std::vector<std::mutex> &worklistMutexes,
+                                std::vector<std::condition_variable> &worklistCVs,
+                                int tid,
+                                std::atomic<IT> & num_enqueued,
+                                std::atomic<IT> & num_dequeued,
+                                std::atomic<IT> & num_contracting_blossoms,
+                                int deferral_threshold) {
+    std::vector<Vertex<IT>> vertexVector;
+    Vertex<IT> * TailOfAugmentingPath;
+    std::vector<IT> path;
+    std::vector<IT> path_values;
+    std::vector<IT> path_keys;
+    Frontier<IT> f;
+    IT N = graph.getN();
+    const size_t nworkers = worklists.size();
+    bool valid = true;
+    // first thread to reach here claims master status.
+    auto thread_match_start = high_resolution_clock::now();
+    auto allocate_start = high_resolution_clock::now();
+    vertexVector.reserve(graph.getN());
+    std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
+    auto allocate_end = high_resolution_clock::now();
+    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+    std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+    IT local_root;
+    auto search_start = high_resolution_clock::now();
+    while(currentRoot.load(std::memory_order_relaxed)<N){
+        if (worklists[tid].try_dequeue(f)){
+            if(concurrent_search(graph,f,vertexVector)){
+                // Successfuly found AP. try to match
+                if(f.TailOfAugmentingPathVertexIndex!=-1){
+                    TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                    extract_path(graph,TailOfAugmentingPath,vertexVector,path);
+                    worklistMutexes[0].lock();
+                    valid = true;
+                    for (auto E : path) {
+                        //Match(EdgeFrom(E)) = E;
+                        valid &= graph.GetMatchField(Graph<IT,VT>::EdgeFrom(graph,E))==vertexVector[Graph<IT,VT>::EdgeFrom(graph,E)].MatchField;
+                        //Match(EdgeTo(E)) = E;
+                        valid &= graph.GetMatchField(Graph<IT,VT>::EdgeTo(graph,E))==vertexVector[Graph<IT,VT>::EdgeTo(graph,E)].MatchField;
+                    }
+                    if (valid){
+                        for (auto E : path) {
+                            //Match(EdgeFrom(E)) = E;
+                            graph.SetMatchField(Graph<IT,VT>::EdgeFrom(graph,E),E);
+                            //Match(EdgeTo(E)) = E;
+                            graph.SetMatchField(Graph<IT,VT>::EdgeTo(graph,E),E);
+                        }
+                    }
+                    worklistMutexes[0].unlock();
+                    //augment(graph,TailOfAugmentingPath,vertexVector,path);
+                } else {
+                    valid = true;
+                }
+            // Concurrent search failed due to augmentation problems.
+            } else {
+                valid = false;
+            }
+            f.reinit(vertexVector);
+            f.clear();
+            path.clear();
+            if (!valid){
+                continue;
+            } else {
+                break;
+            }
+        } else {
+            (local_root=++currentRoot);
+            read_messages[tid]++;
+            while(!graph.IsMatched(local_root)) {
+                vertexVector[local_root].AgeField=f.time++;
+                f.tree.push_back(vertexVector[local_root]);
+                Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,local_root,f.stack);
+                
+                // If returned without an error stemming from
+                // someone else augmenting whilst I am searching
+                // Check if I found an AP.
+                if(concurrent_search(graph,f,vertexVector)){
+                    // Successfuly found AP. try to match
+                    if(f.TailOfAugmentingPathVertexIndex!=-1){
+                        TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                        extract_path(graph,TailOfAugmentingPath,vertexVector,path);
+                        worklistMutexes[0].lock();
+                        valid = true;
+                        for (auto E : path) {
+                            //Match(EdgeFrom(E)) = E;
+                            valid &= graph.GetMatchField(Graph<IT,VT>::EdgeFrom(graph,E))==vertexVector[Graph<IT,VT>::EdgeFrom(graph,E)].MatchField;
+                            //Match(EdgeTo(E)) = E;
+                            valid &= graph.GetMatchField(Graph<IT,VT>::EdgeTo(graph,E))==vertexVector[Graph<IT,VT>::EdgeTo(graph,E)].MatchField;
+                        }
+                        if (valid){
+                            for (auto E : path) {
+                                //Match(EdgeFrom(E)) = E;
+                                graph.SetMatchField(Graph<IT,VT>::EdgeFrom(graph,E),E);
+                                //Match(EdgeTo(E)) = E;
+                                graph.SetMatchField(Graph<IT,VT>::EdgeTo(graph,E),E);
+                            }
+                        }
+                        worklistMutexes[0].unlock();
+                        //augment(graph,TailOfAugmentingPath,vertexVector,path);
+                    } else {
+                        valid = true;
+                    }
+                // Concurrent search failed due to augmentation problems.
+                } else {
+                    valid = false;
+                }
+                f.reinit(vertexVector);
+                f.clear();
+                path.clear();
+                if (!valid){
+                    continue;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+    auto search_end = high_resolution_clock::now();
+    auto duration_search = duration_cast<seconds>(search_end - search_start);
+    std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
+}
 
 template <typename IT, typename VT>
 void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
