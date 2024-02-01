@@ -58,9 +58,9 @@ static void match_persistent_wl4(Graph<IT, VT>& graph,
                                 std::atomic<IT> & num_contracting_blossoms,
                                 int deferral_threshold);
 
-template <typename IT, typename VT>
+template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType=std::vector>
 static void match_persistent_wl5(Graph<IT, VT>& graph,
-                                std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                                std::vector<moodycamel::ConcurrentQueue<FrontierType<IT, StackType>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
@@ -421,9 +421,9 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
 }
 
 
-template <typename IT, typename VT>
+template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType>
 void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
-                                std::vector<moodycamel::ConcurrentQueue<Frontier<IT>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
+                                std::vector<moodycamel::ConcurrentQueue<FrontierType<IT, StackType>, moodycamel::ConcurrentQueueDefaultTraits>> &worklists,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<bool>& found_augmenting_path,
