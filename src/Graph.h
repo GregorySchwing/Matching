@@ -40,10 +40,11 @@ public:
     bool IsMatched(size_t index) const;
     IT GetMatchField(size_t index) const;
     void SetMatchField(size_t index,IT edge);
+    template <template <typename> class StackType = std::vector>
     static bool pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                         std::vector<Vertex<IT>> & vertexVector, 
                                         IT V_index, 
-                                        std::vector<IT> &stack,
+                                        StackType<IT> &stack,
                                         IT optionalEdge1=-1,
                                         IT optionalEdge2=-1);
     static inline IT Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId);
@@ -217,10 +218,11 @@ void Graph<IT,VT>::generateCSR(const std::vector<IT>& rows, const std::vector<IT
 
 
 template <typename IT, typename VT>
+template <template <typename> class StackType>
 bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                     std::vector<Vertex<IT>> & vertexVector, 
                                     IT V_index, 
-                                    std::vector<IT> &stack,
+                                    StackType<IT> &stack,
                                     IT optionalEdge1,
                                     IT optionalEdge2){
     IT nextVertexIndex;

@@ -97,10 +97,15 @@ private:
                     Frontier<IT> & f,
                     std::vector<Vertex<IT>> & vertexVector);
 
-    template <typename IT, typename VT>
+    template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType = std::vector>
     static bool concurrent_search(Graph<IT, VT>& graph, 
-                        Frontier<IT> & f,
+                        FrontierType<IT, StackType> & f,
                         std::vector<Vertex<IT>> & vertexVector);
+
+    template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType = Stack>
+    static bool concurrent_search_generic(Graph<IT, VT>& graph, 
+                    FrontierType<IT, StackType> & f,
+                    std::vector<Vertex<IT>> & vertexVector);
 
     template <typename IT, typename VT>
     static bool capped_search(Graph<IT, VT>& graph, 
@@ -618,7 +623,7 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
     std::vector<IT> path;
     std::vector<IT> path_values;
     std::vector<IT> path_keys;
-    Frontier<IT> f;
+    Frontier<IT,std::deque> f;
     IT N = graph.getN();
     const size_t nworkers = worklists.size();
     bool valid = true;
@@ -632,8 +637,16 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
     std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     IT local_root;
     auto search_start = high_resolution_clock::now();
-    while(currentRoot.load(std::memory_order_relaxed)<N){
-        if (worklists[tid].try_dequeue(f)){
+    for (;(local_root=++currentRoot) < N;) {
+        read_messages[tid]++;
+        while(!graph.IsMatched(local_root)) {
+            vertexVector[local_root].AgeField=f.time++;
+            f.tree.push_back(vertexVector[local_root]);
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,local_root,f.stack);
+            
+            // If returned without an error stemming from
+            // someone else augmenting whilst I am searching
+            // Check if I found an AP.
             if(concurrent_search(graph,f,vertexVector)){
                 // Successfuly found AP. try to match
                 if(f.TailOfAugmentingPathVertexIndex!=-1){
@@ -671,56 +684,6 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
                 continue;
             } else {
                 break;
-            }
-        } else {
-            (local_root=++currentRoot);
-            read_messages[tid]++;
-            while(!graph.IsMatched(local_root)) {
-                vertexVector[local_root].AgeField=f.time++;
-                f.tree.push_back(vertexVector[local_root]);
-                Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,local_root,f.stack);
-                
-                // If returned without an error stemming from
-                // someone else augmenting whilst I am searching
-                // Check if I found an AP.
-                if(concurrent_search(graph,f,vertexVector)){
-                    // Successfuly found AP. try to match
-                    if(f.TailOfAugmentingPathVertexIndex!=-1){
-                        TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
-                        extract_path(graph,TailOfAugmentingPath,vertexVector,path);
-                        worklistMutexes[0].lock();
-                        valid = true;
-                        for (auto E : path) {
-                            //Match(EdgeFrom(E)) = E;
-                            valid &= graph.GetMatchField(Graph<IT,VT>::EdgeFrom(graph,E))==vertexVector[Graph<IT,VT>::EdgeFrom(graph,E)].MatchField;
-                            //Match(EdgeTo(E)) = E;
-                            valid &= graph.GetMatchField(Graph<IT,VT>::EdgeTo(graph,E))==vertexVector[Graph<IT,VT>::EdgeTo(graph,E)].MatchField;
-                        }
-                        if (valid){
-                            for (auto E : path) {
-                                //Match(EdgeFrom(E)) = E;
-                                graph.SetMatchField(Graph<IT,VT>::EdgeFrom(graph,E),E);
-                                //Match(EdgeTo(E)) = E;
-                                graph.SetMatchField(Graph<IT,VT>::EdgeTo(graph,E),E);
-                            }
-                        }
-                        worklistMutexes[0].unlock();
-                        //augment(graph,TailOfAugmentingPath,vertexVector,path);
-                    } else {
-                        valid = true;
-                    }
-                // Concurrent search failed due to augmentation problems.
-                } else {
-                    valid = false;
-                }
-                f.reinit(vertexVector);
-                f.clear();
-                path.clear();
-                if (!valid){
-                    continue;
-                } else {
-                    break;
-                }
             }
         }
     }
@@ -1079,9 +1042,16 @@ bool Matcher::capped_search(Graph<IT, VT>& graph,
 }
 
 
-template <typename IT, typename VT>
+template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType = Stack>
+bool Matcher::concurrent_search_generic(Graph<IT, VT>& graph, 
+                    FrontierType<IT, StackType> & f,
+                    std::vector<Vertex<IT>> & vertexVector) {
+    return false;
+}
+
+template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType>
 bool Matcher::concurrent_search(Graph<IT, VT>& graph, 
-                    Frontier<IT> & f,
+                    FrontierType<IT, StackType> & f,
                     std::vector<Vertex<IT>> & vertexVector) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
@@ -1089,7 +1059,7 @@ bool Matcher::concurrent_search(Graph<IT, VT>& graph,
     IT nextVertexIndex;
 
     IT &time = f.time;
-    std::vector<IT> &stack = f.stack;
+    StackType<IT> &stack = f.stack;
     std::vector<Vertex<IT>> &tree = f.tree;
     while(!stack.empty() ){
         stackEdge = stack.back();
