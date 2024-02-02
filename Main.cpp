@@ -91,13 +91,13 @@ int main(int argc, char **argv) {
         }
         auto match_start = high_resolution_clock::now();
         if (execution){
-            Matcher::match_wl<INDEX_TYPE, std::string>(G,num_threads,deferral_threshold);
+            Matcher::match_wl2<INDEX_TYPE, std::string>(G,num_threads,deferral_threshold);
         } else {
             Matcher::match<INDEX_TYPE, std::string>(G);
         }
         auto match_end = high_resolution_clock::now();
-        auto duration = duration_cast<seconds>(match_end - match_start);
-        std::cout << "Maximum matching time: "<< duration.count() << " seconds" << '\n';
+        auto duration = duration_cast<milliseconds>(match_end - match_start);
+        std::cout << "Maximum matching time: "<< (1.0*duration.count())/1000.0 << " seconds" << '\n';
         auto count = std::count_if(G.matching.begin(), G.matching.end(),[&](auto const& val){ return val > -1; });
         std::cout << "Maximum matching size: "<<  count/2 << '\n';
         matching_times.push_back(duration.count());
@@ -113,8 +113,8 @@ int main(int argc, char **argv) {
     stdev = std::sqrt(stdev / matching_times.size());
 
     // Print mean and standard deviation
-    std::cout << "Mean matching time: " << mean << " seconds" << '\n';
-    std::cout << "Standard deviation: " << stdev << " seconds" << '\n';
+    std::cout << "Mean matching time: " << mean/1000.0 << " seconds" << '\n';
+    std::cout << "Standard deviation: " << stdev/1000.0 << " seconds" << '\n';
 
     //Matcher::match_wl<int64_t, std::string>(G,stats);
     std::vector<INDEX_TYPE> match_count(G.getM(),0);
@@ -151,8 +151,8 @@ int main(int argc, char **argv) {
                 << G.getN() << ","
                 << G.getM() << ","
                 << count / 2 << ","
-                << mean << ","
-                << stdev << ","
+                << mean/1000.0 << ","
+                << stdev/1000.0 << ","
                 << num_threads << ","
                 << num_iters << ","
                 << execution << ","
