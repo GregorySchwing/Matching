@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.11...3.25)
 project(fmm_example VERSION 1.0.0)
-
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pg")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 
 if (NOT EXISTS ${CMAKE_BINARY_DIR}/CMakeCache.txt)
   if (NOT CMAKE_BUILD_TYPE)

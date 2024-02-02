@@ -74,7 +74,7 @@ static void match_persistent_wl5(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 static void match_persistent_wl6(Graph<IT, VT>& graph,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
-                                std::vector<std::atomic<bool>> &dead,
+                                std::vector<std::atomic_flag> &dead,
                                 std::atomic<bool> &finished,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
@@ -327,10 +327,7 @@ void Matcher::match_wl2(Graph<IT, VT>& graph,
     std::atomic<bool> finished(false);
     std::vector<size_t> read_messages;
     std::vector<std::thread> workers(num_threads);
-    std::vector<std::atomic<bool>> dead(graph.getN());
-    for (auto& atomicBool : dead) {
-        atomicBool.store(false);
-    }
+    std::vector<std::atomic_flag> dead(graph.getN()); 
     read_messages.resize(num_threads);
     auto mt_thread_coordination_end = high_resolution_clock::now();
     auto durationmt = duration_cast<microseconds>(mt_thread_coordination_end - mt_thread_coordination_start);
@@ -561,7 +558,7 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
 template <typename IT, typename VT>
 void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
-                                std::vector<std::atomic<bool>> &dead,
+                                std::vector<std::atomic_flag> &dead,
                                 std::atomic<bool> &finished,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
@@ -622,7 +619,7 @@ void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
         while(deferred_roots.size()){
             i = deferred_roots.back();
             deferred_roots.pop_back();
-            if (dead[i].load() || graph.IsMatched(i))
+            if (dead[i].test() || graph.IsMatched(i))
                 continue;
             else{
                 search(graph,i,f,vertexVector);
@@ -655,7 +652,7 @@ void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
         while(!finished.load(std::memory_order_relaxed)){
             IT local_root;
             if (worklist.try_dequeue(local_root)){
-                if (dead[local_root].load() || graph.IsMatched(local_root))
+                if (dead[local_root].test() || graph.IsMatched(local_root))
                     continue;
                 vertexVector[local_root].AgeField=f.time++;
                 f.tree.push_back(vertexVector[local_root]);
@@ -669,7 +666,7 @@ void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
                     if(f.TailOfAugmentingPathVertexIndex!=-1){
 
                     } else {
-                        dead[local_root].store(true);
+                        dead[local_root].test_and_set();;
                         read_messages[tid]++;
                     }
                 // Concurrent search failed due to augmentation problems.
