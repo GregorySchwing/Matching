@@ -66,6 +66,18 @@ public:
                                                     std::atomic<IT> & num_contracting_blossoms,
                                                     int deferral_threshold);
 
+
+    template <typename IT, typename VT>
+    static bool create_threads_concurrentqueue_wl2(std::vector<std::thread> &threads,
+                                                    unsigned num_threads,
+                                                    std::vector<size_t> &read_messages,
+                                                    moodycamel::ConcurrentQueue<IT> &worklist,
+                                                    std::vector<std::atomic<bool>> &dead,
+                                                    std::atomic<IT> &masterTID,
+                                                    Graph<IT, VT> &graph,
+                                                    std::atomic<IT> & currentRoot,
+                                                    int deferral_threshold);
+
 };
 
 
@@ -104,6 +116,42 @@ bool ThreadFactory::create_threads_concurrentqueue_wl(std::vector<std::thread> &
             currentRoot,
             worklistMutexes,worklistCVs,i); } );
         }
+        // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
+        // only CPU i as set.
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(i, &cpuset);
+        int rc = pthread_setaffinity_np(threads[i].native_handle(),
+                                        sizeof(cpu_set_t), &cpuset);
+        if (rc != 0) {
+            std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+        }
+    }
+  return true;
+}
+
+
+//template <typename IT, typename VT>
+template <typename IT, typename VT>
+bool ThreadFactory::create_threads_concurrentqueue_wl2(std::vector<std::thread> &threads,
+                                                    unsigned num_threads,
+                                                    std::vector<size_t> &read_messages,
+                                                    moodycamel::ConcurrentQueue<IT> &worklist,
+                                                    std::vector<std::atomic<bool>> &dead,
+                                                    std::atomic<IT> &masterTID,
+                                                    Graph<IT, VT> &graph,
+                                                    std::atomic<IT> & currentRoot,
+                                                    int deferral_threshold){
+    // Works, infers template types from args
+    //Matcher::search(graph,0,*(frontiers[0]));
+    for (unsigned i = 0; i < num_threads; ++i) {
+        //threads[i] = std::thread(&Matcher::hello_world, i);
+          threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl6<IT,VT>(graph,
+            worklist,dead,masterTID,
+            read_messages,
+            currentRoot,
+            i,
+            deferral_threshold); } );
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
         // only CPU i as set.
         cpu_set_t cpuset;

@@ -26,6 +26,10 @@ public:
                         int num_threads,
                         int deferral_threshold);
     template <typename IT, typename VT>
+    static void match_wl2(Graph<IT, VT>& graph, 
+                        int num_threads,
+                        int deferral_threshold);
+    template <typename IT, typename VT>
     static void match_persistent_wl(Graph<IT, VT> &graph,
                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                     bool &finished);
@@ -67,12 +71,28 @@ static void match_persistent_wl5(Graph<IT, VT>& graph,
                                 std::atomic<IT> & num_dequeued,
                                 std::atomic<IT> & num_contracting_blossoms,
                                 int deferral_threshold);
+template <typename IT, typename VT>
+static void match_persistent_wl6(Graph<IT, VT>& graph,
+                                moodycamel::ConcurrentQueue<IT> &worklist,
+                                std::vector<std::atomic<bool>> &dead,
+                                std::atomic<IT> &masterTID,
+                                std::vector<size_t> &read_messages,
+                                std::atomic<IT> & currentRoot,
+                                int tid,
+                                int deferral_threshold);
 private:
     template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType=std::vector>
     static void search(Graph<IT, VT>& graph, 
                     const size_t V_index,
                     FrontierType<IT, StackType> & f,
                     std::vector<Vertex<IT>> & vertexVector);
+
+    template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType=std::vector>
+    static bool search(Graph<IT, VT>& graph, 
+                    const size_t V_index,
+                    FrontierType<IT, StackType> & f,
+                    std::vector<Vertex<IT>> & vertexVector,
+                    IT deferral_threshold);
 
     template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType=std::vector>
     static void continue_search(Graph<IT, VT>& graph, 
@@ -293,6 +313,53 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
 }
 
 
+
+template <typename IT, typename VT>
+void Matcher::match_wl2(Graph<IT, VT>& graph, 
+                        int num_threads,
+                        int deferral_threshold) {
+    auto mt_thread_coordination_start = high_resolution_clock::now();
+    size_t capacity = 100;
+    moodycamel::ConcurrentQueue<IT> worklist{capacity};
+    std::atomic<IT> currentRoot(-1);
+    std::atomic<IT> masterTID(-1);
+    std::vector<size_t> read_messages;
+    std::vector<std::thread> workers(num_threads);
+    std::vector<std::atomic<bool>> dead(graph.getN());
+    for (auto& atomicBool : dead) {
+        atomicBool.store(false);
+    }
+    read_messages.resize(num_threads);
+    auto mt_thread_coordination_end = high_resolution_clock::now();
+    auto durationmt = duration_cast<microseconds>(mt_thread_coordination_end - mt_thread_coordination_start);
+    std::cout << "Worklist and atomic variable allocation time: "<< durationmt.count() << " microseconds" << '\n';
+
+    //spinning.resize(num_threads,false);
+    // Access the graph elements as needed
+    ThreadFactory::create_threads_concurrentqueue_wl2<IT,VT>(workers, num_threads,read_messages,
+    worklist,dead,
+    masterTID,graph,
+    currentRoot,
+    deferral_threshold);
+
+    auto join_thread_start = high_resolution_clock::now();
+    for (auto& t : workers) {
+        t.join();
+    }
+    auto join_thread_end = high_resolution_clock::now();
+    auto duration = duration_cast<seconds>(join_thread_end - join_thread_start);
+    std::cout << "Thread joining time: "<< duration.count() << " seconds" << '\n';
+
+    size_t tot_read_messages = 0;
+    int ni = 0;
+    for (size_t n : read_messages){
+        printf("reader: \t\t %d read_messages %zu \n", ni++,n);
+        tot_read_messages += n;
+    }
+    printf("Total read_messages %zu \n", tot_read_messages);
+}
+
+
 template <typename IT, typename VT>
 void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
@@ -486,6 +553,105 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
     auto duration_search = duration_cast<seconds>(search_end - search_start);
     std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
 }
+
+
+
+template <typename IT, typename VT>
+void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
+                                moodycamel::ConcurrentQueue<IT> &worklist,
+                                std::vector<std::atomic<bool>> &dead,
+                                std::atomic<IT> &masterTID,
+                                std::vector<size_t> &read_messages,
+                                std::atomic<IT> & currentRoot,
+                                int tid,
+                                int deferral_threshold) {
+    IT expected = -1;
+    IT desired = -0;
+    std::vector<Vertex<IT>> vertexVector;
+    Vertex<IT> * TailOfAugmentingPath;
+    Frontier<IT> f;
+    std::vector<IT> path;
+    std::vector<IT> deferred_roots;
+    IT i;
+    const size_t N = graph.getN();
+    // First to encounter this code will see currentRoot == -2,
+    // it will be atomically exchanged with -1, and return true.
+    // All others will modify expected, inconsequentially,
+    // and enter the while loop.
+    // The worker thread has done the work,
+    // Notify the master thread to continue the work.
+    auto thread_match_start = high_resolution_clock::now();
+    if (currentRoot.compare_exchange_strong(expected, desired)) {
+        auto allocate_start = high_resolution_clock::now();
+        vertexVector.reserve(graph.getN());
+        std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
+        auto allocate_end = high_resolution_clock::now();
+        auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+        std::cout << "Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+        // Access the graph elements as needed
+        auto search_start = high_resolution_clock::now();
+        for (i = 0; i < N; ++i) {
+            if (!graph.IsMatched(i)) {
+                //printf("SEARCHING FROM %ld!\n",i);
+                // Your matching logic goes here...
+                bool finished = search(graph,i,f,vertexVector,deferral_threshold);
+                // If not -1, I found an AP.
+                if(finished){
+                    if (f.TailOfAugmentingPathVertexIndex!=-1){
+                            TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                            augment(graph,TailOfAugmentingPath,vertexVector,path);
+                            f.reinit(vertexVector);
+                            path.clear();
+                            f.clear();
+                        //printf("FOUND AP!\n");
+                    } else {
+                        f.clear();
+                        //printf("DIDNT FOUND AP!\n");
+                    }
+                } else {
+                    deferred_roots.push_back(i);
+                    worklist.enqueue(i);
+                    f.reinit(vertexVector);
+                    f.clear();
+                }
+            }
+        }
+        while(deferred_roots.size()){
+            i = deferred_roots.back();
+            deferred_roots.pop_back();
+            if (dead[i].load() || graph.IsMatched(i))
+                continue;
+            else{
+                search(graph,i,f,vertexVector);
+                if (f.TailOfAugmentingPathVertexIndex!=-1){
+                        TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                        augment(graph,TailOfAugmentingPath,vertexVector,path);
+                        f.reinit(vertexVector);
+                        path.clear();
+                        f.clear();
+                    //printf("FOUND AP!\n");
+                } else {
+                    f.clear();
+                    //printf("DIDNT FOUND AP!\n");
+                }
+            }
+        }
+        auto search_end = high_resolution_clock::now();
+        auto duration_search = duration_cast<seconds>(search_end - search_start);
+        std::cout << "Algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
+    } else {
+        // If the worklist is empty, wait for a signal
+        /*
+        while(currentRoot.load(std::memory_order_relaxed)<N){
+            IT local_root;
+            if (worklist.try_dequeue(local_root)){
+
+            }
+        }*/
+    }
+
+}
+
 
 template <typename IT, typename VT>
 void Matcher::match_persistent_wl2(Graph<IT, VT>& graph,
@@ -767,6 +933,93 @@ void Matcher::search(Graph<IT, VT>& graph,
         }
     }
     return;
+}
+
+
+template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType>
+bool Matcher::search(Graph<IT, VT>& graph, 
+                    const size_t V_index,
+                    FrontierType<IT, StackType> & f,
+                    std::vector<Vertex<IT>> & vertexVector,
+                    IT deferral_threshold) {
+    Vertex<IT> *FromBase,*ToBase, *nextVertex;
+    IT FromBaseVertexID,ToBaseVertexID;
+    IT stackEdge, matchedEdge;
+    IT nextVertexIndex;
+    IT &time = f.time;
+    StackType<IT> &stack = f.stack;
+    std::vector<Vertex<IT>> &tree = f.tree;
+    //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
+    nextVertex = &vertexVector[V_index];
+    nextVertex->AgeField=time++;
+    tree.push_back(*nextVertex);
+
+    // Push edges onto stack, breaking if that stackEdge is a solution.
+    Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,V_index,stack);
+    while(!stack.empty()){
+        if (stack.size()>deferral_threshold)
+            return false;
+        stackEdge = stack.back();
+        stack.pop_back();
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        FromBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeFrom(graph,stackEdge),vertexVector);  
+        FromBase = &vertexVector[FromBaseVertexID];
+
+        // Necessary because vertices dont know their own index.
+        // It simplifies vector creation..
+        ToBaseVertexID = DisjointSetUnionHelper<IT>::getBase(Graph<IT,VT>::EdgeTo(graph,stackEdge),vertexVector);  
+
+        ToBase = &vertexVector[ToBaseVertexID];
+
+        // Edge is between two vertices in the same blossom, continue.
+        if (FromBase == ToBase)
+            continue;
+        if(!FromBase->IsEven()){
+            std::swap(FromBase,ToBase);
+            std::swap(FromBaseVertexID,ToBaseVertexID);
+        }
+        // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
+        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(*ToBase);
+            //graph.SetMatchField(ToBaseVertexID,stackEdge);
+            // I'll let the augment path method recover the path.
+            f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
+            return true;
+        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+            ToBase->TreeField=stackEdge;
+            ToBase->AgeField=time++;
+            tree.push_back(*ToBase);
+
+            // Minimize atomic matching access
+            /*
+            matchedEdge=graph.GetMatchField(ToBaseVertexID);
+            nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+            nextVertex = &vertexVector[nextVertexIndex];
+            nextVertex->AgeField=time++;
+            tree.push_back(*nextVertex);*/
+            matchedEdge=graph.GetMatchField(ToBaseVertexID);
+            ToBase->MatchField=matchedEdge;
+            nextVertexIndex = Graph<IT,VT>::Other(graph,matchedEdge,ToBaseVertexID);
+            nextVertex = &vertexVector[nextVertexIndex];
+            nextVertex->AgeField=time++;
+            nextVertex->MatchField=matchedEdge;
+            tree.push_back(*nextVertex);
+
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,nextVertexIndex,stack,matchedEdge);
+
+        } else if (ToBase->IsEven()) {
+            // Shrink Blossoms
+            // Not sure if this is wrong or the augment method is wrong
+            // Minimize atomic matching access
+            //Blossom::Shrink(graph,stackEdge,vertexVector,stack);
+            Blossom::Shrink_Concurrent(graph,stackEdge,vertexVector,stack);
+
+        }
+    }
+    return true;
 }
 
 
