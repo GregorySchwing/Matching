@@ -634,6 +634,7 @@ void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
                         f.clear();
                     //printf("FOUND AP!\n");
                 } else {
+                    read_messages[tid]++;       
                     f.clear();
                     //printf("DIDNT FOUND AP!\n");
                 }
@@ -649,7 +650,7 @@ void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
         while(!finished.load(std::memory_order_relaxed)){
             IT local_root;
             if (worklist.try_dequeue(local_root)){
-                read_messages[tid]++;       
+                
             }
         }
     }
