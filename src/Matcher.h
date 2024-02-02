@@ -646,11 +646,36 @@ void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
         std::cout << "Algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
     } else {
         // If the worklist is empty, wait for a signal
-        
+        auto allocate_start = high_resolution_clock::now();
+        vertexVector.reserve(graph.getN());
+        std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
+        auto allocate_end = high_resolution_clock::now();
+        auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+        std::cout << "Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
         while(!finished.load(std::memory_order_relaxed)){
             IT local_root;
             if (worklist.try_dequeue(local_root)){
+                if (dead[local_root].load() || graph.IsMatched(local_root))
+                    continue;
+                vertexVector[local_root].AgeField=f.time++;
+                f.tree.push_back(vertexVector[local_root]);
+                Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,local_root,f.stack);
                 
+                // If returned without an error stemming from
+                // someone else augmenting whilst I am searching
+                // Check if I found an AP.
+                if(concurrent_search(graph,f,vertexVector)){
+                    // Successfuly found AP. try to match
+                    if(f.TailOfAugmentingPathVertexIndex!=-1){
+
+                    } else {
+                        dead[local_root].store(true);
+                        read_messages[tid]++;
+                    }
+                // Concurrent search failed due to augmentation problems.
+                }
+                f.reinit(vertexVector);
+                f.clear();
             }
         }
     }
