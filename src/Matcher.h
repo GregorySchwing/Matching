@@ -184,26 +184,28 @@ private:
 
 template <typename IT, typename VT>
 void Matcher::match(Graph<IT, VT>& graph) {
-
     std::vector<Vertex<IT>> vertexVector;
-    auto allocate_start = high_resolution_clock::now();
-    vertexVector.reserve(graph.getN());
-    std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
-    auto allocate_end = high_resolution_clock::now();
-    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
-    std::cout << "Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     Vertex<IT> * TailOfAugmentingPath;
     Frontier<IT> f;
     std::vector<IT> path;
-    // Access the graph elements as needed
+    IT i;
     const size_t N = graph.getN();
+    auto allocate_start = high_resolution_clock::now();
+    vertexVector.reserve(graph.getN());
+    path.reserve(graph.getN());
+    std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
+    auto allocate_end = high_resolution_clock::now();
+    auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+    std::cout << "Vertex Vector (11|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+    // Access the graph elements as needed
     auto search_start = high_resolution_clock::now();
-    for (std::size_t i = 0; i < N; ++i) {
-        if (!graph.IsMatched(i)) {
-            //printf("SEARCHING FROM %ld!\n",i);
-            // Your matching logic goes here...
+    //for (; (i=currentRoot++) < N;) {
+    for (i = 0; i < N; ++i) {
+        //currentRoot.store(i,std::memory_order_release);
+        if (graph.IsMatched(i))
+            continue;
+        else{
             search(graph,i,f,vertexVector);
-            // If not -1, I found an AP.
             if (f.TailOfAugmentingPathVertexIndex!=-1){
                     TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
                     augment(graph,TailOfAugmentingPath,vertexVector,path);
@@ -218,8 +220,8 @@ void Matcher::match(Graph<IT, VT>& graph) {
         }
     }
     auto search_end = high_resolution_clock::now();
-    auto duration_search = duration_cast<seconds>(search_end - search_start);
-    std::cout << "Algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
+    auto duration_search = duration_cast<milliseconds>(search_end - search_start);
+    std::cout << "Algorithm execution time: "<< (1.0*duration_search.count())/1000.0 << " seconds" << '\n';
 }
 
 
@@ -705,7 +707,6 @@ void Matcher::match_persistent_wl7(Graph<IT, VT>& graph,
     Vertex<IT> * TailOfAugmentingPath;
     Frontier<IT> f;
     std::vector<IT> path;
-    std::vector<IT> deferred_roots;
     IT i;
     const size_t N = graph.getN();
     // First to encounter this code will see currentRoot == -1,
@@ -714,12 +715,14 @@ void Matcher::match_persistent_wl7(Graph<IT, VT>& graph,
     // and enter the while loop.
     auto thread_match_start = high_resolution_clock::now();
     if (currentRoot.compare_exchange_strong(expected, desired)) {
+        std::cout << "MASTER TID(" << tid << ")" << '\n';
         auto allocate_start = high_resolution_clock::now();
         vertexVector.reserve(graph.getN());
+        path.reserve(graph.getN());
         std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
         auto allocate_end = high_resolution_clock::now();
         auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
-        std::cout << "Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+        std::cout << "TID(" << tid << ") Vertex Vector (11|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
         // Access the graph elements as needed
         auto search_start = high_resolution_clock::now();
         //for (; (i=currentRoot++) < N;) {
@@ -747,15 +750,15 @@ void Matcher::match_persistent_wl7(Graph<IT, VT>& graph,
         }
         finished.store(true);
         auto search_end = high_resolution_clock::now();
-        auto duration_search = duration_cast<seconds>(search_end - search_start);
-        std::cout << "Algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
+        auto duration_search = duration_cast<milliseconds>(search_end - search_start);
+        std::cout << "Algorithm execution time: "<< (1.0*duration_search.count())/1000.0 << " seconds" << '\n';
     } else {
         auto allocate_start = high_resolution_clock::now();
         vertexVector.reserve(graph.getN());
         std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
         auto allocate_end = high_resolution_clock::now();
         auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
-        std::cout << "Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+        std::cout << "TID(" << tid << ") Vertex Vector (10|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
         while(!finished.load(std::memory_order_relaxed)){
             IT lower_bound = currentRoot.load(std::memory_order_relaxed);
             
@@ -781,8 +784,7 @@ void Matcher::match_persistent_wl7(Graph<IT, VT>& graph,
             // Concurrent search failed due to augmentation problems.
             }
             f.reinit(vertexVector);
-            f.clear();
-            
+            f.clear();   
         }
     }
 
