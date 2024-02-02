@@ -75,6 +75,7 @@ template <typename IT, typename VT>
 static void match_persistent_wl6(Graph<IT, VT>& graph,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
                                 std::vector<std::atomic<bool>> &dead,
+                                std::atomic<bool> &finished,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<IT> & currentRoot,
@@ -323,6 +324,7 @@ void Matcher::match_wl2(Graph<IT, VT>& graph,
     moodycamel::ConcurrentQueue<IT> worklist{capacity};
     std::atomic<IT> currentRoot(-1);
     std::atomic<IT> masterTID(-1);
+    std::atomic<bool> finished(false);
     std::vector<size_t> read_messages;
     std::vector<std::thread> workers(num_threads);
     std::vector<std::atomic<bool>> dead(graph.getN());
@@ -337,7 +339,7 @@ void Matcher::match_wl2(Graph<IT, VT>& graph,
     //spinning.resize(num_threads,false);
     // Access the graph elements as needed
     ThreadFactory::create_threads_concurrentqueue_wl2<IT,VT>(workers, num_threads,read_messages,
-    worklist,dead,
+    worklist,dead,finished,
     masterTID,graph,
     currentRoot,
     deferral_threshold);
@@ -560,6 +562,7 @@ template <typename IT, typename VT>
 void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
                                 moodycamel::ConcurrentQueue<IT> &worklist,
                                 std::vector<std::atomic<bool>> &dead,
+                                std::atomic<bool> &finished,
                                 std::atomic<IT> &masterTID,
                                 std::vector<size_t> &read_messages,
                                 std::atomic<IT> & currentRoot,
@@ -636,18 +639,19 @@ void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
                 }
             }
         }
+        finished.store(true);
         auto search_end = high_resolution_clock::now();
         auto duration_search = duration_cast<seconds>(search_end - search_start);
         std::cout << "Algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
     } else {
         // If the worklist is empty, wait for a signal
-        /*
-        while(currentRoot.load(std::memory_order_relaxed)<N){
+        
+        while(!finished.load(std::memory_order_relaxed)){
             IT local_root;
             if (worklist.try_dequeue(local_root)){
-
+                read_messages[tid]++;       
             }
-        }*/
+        }
     }
 
 }

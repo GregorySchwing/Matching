@@ -73,6 +73,7 @@ public:
                                                     std::vector<size_t> &read_messages,
                                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                                     std::vector<std::atomic<bool>> &dead,
+                                                    std::atomic<bool> &finished,
                                                     std::atomic<IT> &masterTID,
                                                     Graph<IT, VT> &graph,
                                                     std::atomic<IT> & currentRoot,
@@ -138,6 +139,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl2(std::vector<std::thread> 
                                                     std::vector<size_t> &read_messages,
                                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                                     std::vector<std::atomic<bool>> &dead,
+                                                    std::atomic<bool> &finished,
                                                     std::atomic<IT> &masterTID,
                                                     Graph<IT, VT> &graph,
                                                     std::atomic<IT> & currentRoot,
@@ -147,7 +149,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl2(std::vector<std::thread> 
     for (unsigned i = 0; i < num_threads; ++i) {
         //threads[i] = std::thread(&Matcher::hello_world, i);
           threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl6<IT,VT>(graph,
-            worklist,dead,masterTID,
+            worklist,dead,finished,masterTID,
             read_messages,
             currentRoot,
             i,
