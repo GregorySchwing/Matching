@@ -574,12 +574,10 @@ void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
     std::vector<IT> deferred_roots;
     IT i;
     const size_t N = graph.getN();
-    // First to encounter this code will see currentRoot == -2,
-    // it will be atomically exchanged with -1, and return true.
+    // First to encounter this code will see currentRoot == -1,
+    // it will be atomically exchanged with 0, and return true.
     // All others will modify expected, inconsequentially,
     // and enter the while loop.
-    // The worker thread has done the work,
-    // Notify the master thread to continue the work.
     auto thread_match_start = high_resolution_clock::now();
     if (currentRoot.compare_exchange_strong(expected, desired)) {
         auto allocate_start = high_resolution_clock::now();
