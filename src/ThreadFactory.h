@@ -148,7 +148,7 @@ bool ThreadFactory::create_threads_concurrentqueue_wl2(std::vector<std::thread> 
     //Matcher::search(graph,0,*(frontiers[0]));
     for (unsigned i = 0; i < num_threads; ++i) {
         //threads[i] = std::thread(&Matcher::hello_world, i);
-          threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl6<IT,VT>(graph,
+          threads[i] = std::thread( [&,i,deferral_threshold]{ Matcher::match_persistent_wl7<IT,VT>(graph,
             worklist,dead,finished,masterTID,
             read_messages,
             currentRoot,
