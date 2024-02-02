@@ -68,10 +68,10 @@ static void match_persistent_wl5(Graph<IT, VT>& graph,
                                 std::atomic<IT> & num_contracting_blossoms,
                                 int deferral_threshold);
 private:
-    template <typename IT, typename VT>
+    template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType=std::vector>
     static void search(Graph<IT, VT>& graph, 
                     const size_t V_index,
-                    Frontier<IT> & f,
+                    FrontierType<IT, StackType> & f,
                     std::vector<Vertex<IT>> & vertexVector);
 
     template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType = std::vector>
@@ -437,21 +437,42 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
     auto allocate_end = high_resolution_clock::now();
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
-    auto search_start = high_resolution_clock::now();
-    while(currentRoot.load(std::memory_order_relaxed)<N){
-        if (worklists[tid].try_dequeue(f)){
-            if(!graph.IsMatched(f.root)) {
 
-            }
-        } else {
-            f.root=++currentRoot;
-            if(!graph.IsMatched(f.root)) {
-                vertexVector[f.root].AgeField=f.time++;
-                f.tree.push_back(vertexVector[f.root]);
-                Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,f.root,f.stack);
+    IT expected = -1;
+    IT desired = 0;
+    IT local_root;
+    // Master
+    if (currentRoot.compare_exchange_strong(expected, desired)) {
+        for (; (local_root=currentRoot++) < N;) {
+            if (!graph.IsMatched(local_root)) {
+                //printf("SEARCHING FROM %ld!\n",i);
+                // Your matching logic goes here...
+                search(graph,local_root,f,vertexVector);
+                // If not -1, I found an AP.
+                if (f.TailOfAugmentingPathVertexIndex!=-1){
+                        TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                        augment(graph,TailOfAugmentingPath,vertexVector,path);
+                        f.reinit(vertexVector);
+                        path.clear();
+                        f.clear();
+                    //printf("FOUND AP!\n");
+                } else {
+                    f.clear();
+                    //printf("DIDNT FOUND AP!\n");
+                }
             }
         }
+
+    } else {
+        while(currentRoot.load(std::memory_order_relaxed)!=N){
+            //if (worklists[tid].try_dequeue(f)){
+
+            //}
+        }
     }
+    
+    auto search_start = high_resolution_clock::now();
+
     auto search_end = high_resolution_clock::now();
     auto duration_search = duration_cast<seconds>(search_end - search_start);
     std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
@@ -655,18 +676,17 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
     }
     return nullptr;
 }
-
-template <typename IT, typename VT>
+template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType>
 void Matcher::search(Graph<IT, VT>& graph, 
                     const size_t V_index,
-                    Frontier<IT> & f,
+                    FrontierType<IT, StackType> & f,
                     std::vector<Vertex<IT>> & vertexVector) {
     Vertex<IT> *FromBase,*ToBase, *nextVertex;
     IT FromBaseVertexID,ToBaseVertexID;
     IT stackEdge, matchedEdge;
     IT nextVertexIndex;
     IT &time = f.time;
-    std::vector<IT> &stack = f.stack;
+    StackType<IT> &stack = f.stack;
     std::vector<Vertex<IT>> &tree = f.tree;
     //auto inserted = vertexMap.try_emplace(V_index,Vertex<IT>(time++,Label::EvenLabel));
     nextVertex = &vertexVector[V_index];
