@@ -81,6 +81,17 @@ static void match_persistent_wl6(Graph<IT, VT>& graph,
                                 std::atomic<IT> & currentRoot,
                                 int tid,
                                 int deferral_threshold);
+
+template <typename IT, typename VT>
+static void match_persistent_wl7(Graph<IT, VT>& graph,
+                                moodycamel::ConcurrentQueue<IT> &worklist,
+                                std::vector<std::atomic_flag> &dead,
+                                std::atomic<bool> &finished,
+                                std::atomic<IT> &masterTID,
+                                std::vector<size_t> &read_messages,
+                                std::atomic<IT> & currentRoot,
+                                int tid,
+                                int deferral_threshold);
 private:
     template <typename IT, typename VT, template <typename, template <typename> class> class FrontierType, template <typename> class StackType=std::vector>
     static void search(Graph<IT, VT>& graph, 
@@ -672,6 +683,106 @@ void Matcher::match_persistent_wl6(Graph<IT, VT>& graph,
                 f.reinit(vertexVector);
                 f.clear();
             }
+        }
+    }
+
+}
+
+
+template <typename IT, typename VT>
+void Matcher::match_persistent_wl7(Graph<IT, VT>& graph,
+                                moodycamel::ConcurrentQueue<IT> &worklist,
+                                std::vector<std::atomic_flag> &dead,
+                                std::atomic<bool> &finished,
+                                std::atomic<IT> &masterTID,
+                                std::vector<size_t> &read_messages,
+                                std::atomic<IT> & currentRoot,
+                                int tid,
+                                int deferral_threshold) {
+    IT expected = -1;
+    IT desired = -0;
+    std::vector<Vertex<IT>> vertexVector;
+    Vertex<IT> * TailOfAugmentingPath;
+    Frontier<IT> f;
+    std::vector<IT> path;
+    std::vector<IT> deferred_roots;
+    IT i;
+    const size_t N = graph.getN();
+    // First to encounter this code will see currentRoot == -1,
+    // it will be atomically exchanged with 0, and return true.
+    // All others will modify expected, inconsequentially,
+    // and enter the while loop.
+    auto thread_match_start = high_resolution_clock::now();
+    if (currentRoot.compare_exchange_strong(expected, desired)) {
+        auto allocate_start = high_resolution_clock::now();
+        vertexVector.reserve(graph.getN());
+        std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
+        auto allocate_end = high_resolution_clock::now();
+        auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+        std::cout << "Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+        // Access the graph elements as needed
+        auto search_start = high_resolution_clock::now();
+        //for (; (i=currentRoot++) < N;) {
+        for (i = 0; i < N; ++i) {
+            //currentRoot.store(i,std::memory_order_release);
+            if (dead[i].test() || graph.IsMatched(i))
+                continue;
+            else{
+                currentRoot.store(i,std::memory_order_relaxed);
+                search(graph,i,f,vertexVector);
+                if (f.TailOfAugmentingPathVertexIndex!=-1){
+                        TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                        augment(graph,TailOfAugmentingPath,vertexVector,path);
+                        f.reinit(vertexVector);
+                        path.clear();
+                        f.clear();
+                    //printf("FOUND AP!\n");
+                } else {
+                    if(!dead[i].test_and_set())
+                        read_messages[tid]++;
+                    f.clear();
+                    //printf("DIDNT FOUND AP!\n");
+                }
+            }
+        }
+        finished.store(true);
+        auto search_end = high_resolution_clock::now();
+        auto duration_search = duration_cast<seconds>(search_end - search_start);
+        std::cout << "Algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
+    } else {
+        auto allocate_start = high_resolution_clock::now();
+        vertexVector.reserve(graph.getN());
+        std::iota(vertexVector.begin(), vertexVector.begin()+graph.getN(), 0);
+        auto allocate_end = high_resolution_clock::now();
+        auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
+        std::cout << "Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
+        while(!finished.load(std::memory_order_relaxed)){
+            IT lower_bound = currentRoot.load(std::memory_order_relaxed);
+            
+            //IT random_vertex = rand()%(N-lower_bound + 1) + lower_bound;
+            IT random_vertex = lower_bound+100;
+            if (random_vertex >= N || dead[random_vertex].test() || graph.IsMatched(random_vertex))
+                continue;
+            vertexVector[random_vertex].AgeField=f.time++;
+            f.tree.push_back(vertexVector[random_vertex]);
+            Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,random_vertex,f.stack);
+            
+            // If returned without an error stemming from
+            // someone else augmenting whilst I am searching
+            // Check if I found an AP.
+            if(concurrent_search(graph,f,vertexVector)){
+                // Successfuly found AP. try to match
+                if(f.TailOfAugmentingPathVertexIndex!=-1){
+
+                } else {
+                    if(!dead[random_vertex].test_and_set())
+                        read_messages[tid]++;
+                }
+            // Concurrent search failed due to augmentation problems.
+            }
+            f.reinit(vertexVector);
+            f.clear();
+            
         }
     }
 
