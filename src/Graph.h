@@ -40,10 +40,11 @@ public:
     bool IsMatched(size_t index) const;
     IT GetMatchField(size_t index) const;
     void SetMatchField(size_t index,IT edge);
+    template <template <typename> class StackType = std::vector>
     static bool pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                         std::vector<Vertex<IT>> & vertexVector, 
                                         IT V_index, 
-                                        std::vector<IT> &stack,
+                                        StackType<IT> &stack,
                                         IT optionalEdge1=-1,
                                         IT optionalEdge2=-1);
     static inline IT Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId);
@@ -126,20 +127,20 @@ size_t Graph<IT,VT>::getM() const{
 
 template <typename IT, typename VT>
 bool Graph<IT,VT>::IsMatched(size_t index) const{
-    //return matching[index].load()>-1;
-    return matching[index]>-1;
+    return matching[index].load()>-1;
+    //return matching[index]>-1;
 }
 
 template <typename IT, typename VT>
 IT Graph<IT,VT>::GetMatchField(size_t index) const{
-    //return matching[index].load();
-    return matching[index];
+    return matching[index].load();
+    //return matching[index];
 }
 
 template <typename IT, typename VT>
 void Graph<IT,VT>::SetMatchField(size_t index,IT edge){
-    //matching[index].store(edge);
-    matching[index]=edge;
+    matching[index].store(edge);
+    //matching[index]=edge;
 }
 
 // Constructor
@@ -217,10 +218,11 @@ void Graph<IT,VT>::generateCSR(const std::vector<IT>& rows, const std::vector<IT
 
 
 template <typename IT, typename VT>
+template <template <typename> class StackType>
 bool Graph<IT,VT>::pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                     std::vector<Vertex<IT>> & vertexVector, 
                                     IT V_index, 
-                                    std::vector<IT> &stack,
+                                    StackType<IT> &stack,
                                     IT optionalEdge1,
                                     IT optionalEdge2){
     IT nextVertexIndex;

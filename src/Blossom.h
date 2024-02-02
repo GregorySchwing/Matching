@@ -20,11 +20,11 @@ class Blossom {
                             std::vector<Vertex<IT>> & vertexVector, 
                             std::vector<IT> &stack);
 
-        template <typename IT, typename VT>
+        template <typename IT, typename VT, template <typename> class StackType=std::vector>
         static bool Shrink_Concurrent(const Graph<IT, VT>& graph, 
                             const IT stackEdge, 
                             std::vector<Vertex<IT>> & vertexVector, 
-                            std::vector<IT> &stack);
+                            StackType<IT> &stack);
 
         template <typename IT, typename VT>
         static void Shrink(const Graph<IT, VT>& graph, 
@@ -267,11 +267,11 @@ void Blossom::Shrink(const Graph<IT, VT>& graph,
 }
 
 
-template <typename IT, typename VT>
+template <typename IT, typename VT, template <typename> class StackType>
 bool Blossom::Shrink_Concurrent(const Graph<IT, VT>& graph, 
                     const IT stackEdge, 
                     std::vector<Vertex<IT>> & vertexVector, 
-                    std::vector<IT> &stack){
+                    StackType<IT> &stack){
     // V,W
     IT EdgeFromVertexID,EdgeToVertexID;
     Vertex<IT> *EdgeToVertex;
