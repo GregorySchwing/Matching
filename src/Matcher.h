@@ -763,7 +763,7 @@ void Matcher::match_persistent_wl7(Graph<IT, VT>& graph,
             IT lower_bound = currentRoot.load(std::memory_order_relaxed);
             
             //IT random_vertex = rand()%(N-lower_bound + 1) + lower_bound;
-            IT random_vertex = lower_bound+100;
+            IT random_vertex = lower_bound+100+tid;
             if (random_vertex >= N || dead[random_vertex].test() || graph.IsMatched(random_vertex))
                 continue;
             vertexVector[random_vertex].AgeField=f.time++;
