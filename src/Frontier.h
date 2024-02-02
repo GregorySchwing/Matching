@@ -30,12 +30,12 @@ public:
 
 // Constructor
 template <typename IT, template <typename> class StackType>
-Frontier<IT, StackType>::Frontier():time(0),TailOfAugmentingPathVertexIndex(-1) {
+Frontier<IT, StackType>::Frontier():time(0),root(0),TailOfAugmentingPathVertexIndex(-1) {
 }
 
 // Constructor
 template <typename IT, template <typename> class StackType>
-Frontier<IT, StackType>::Frontier(size_t _capacity):time(0),TailOfAugmentingPathVertexIndex(-1),capacity(_capacity),stack(_capacity),tree(_capacity) {
+Frontier<IT, StackType>::Frontier(size_t _capacity):time(0),root(0),TailOfAugmentingPathVertexIndex(-1),capacity(_capacity),stack(_capacity),tree(_capacity) {
     
 }
 
@@ -111,6 +111,7 @@ void Frontier<IT, StackType>::updateVertexVector(std::vector<Vertex<IT>> &vertex
 template <typename IT, template <typename> class StackType>
 void Frontier<IT, StackType>::clear(){
     time = 0;
+    root=0;
     TailOfAugmentingPathVertexIndex = -1;
     stack.clear();
     tree.clear();

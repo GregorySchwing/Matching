@@ -162,7 +162,7 @@ void Matcher::match(Graph<IT, VT>& graph) {
     const size_t N = graph.getN();
     auto search_start = high_resolution_clock::now();
     for (std::size_t i = 0; i < N; ++i) {
-        if (!graph.IsMatched(i)) {
+        if (!graph.HasBeenMatched(i)) {
             //printf("SEARCHING FROM %ld!\n",i);
             // Your matching logic goes here...
             search(graph,i,f,vertexVector);
@@ -201,7 +201,7 @@ void Matcher::match(Graph<IT, VT>& graph, Statistics<IT>& stats) {
         std::vector<IT> path;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
-        if (!graph.IsMatched(i)) {
+        if (!graph.HasBeenMatched(i)) {
             //printf("SEARCHING FROM %ld!\n",i);
             // Your matching logic goes here...
             auto search_start = high_resolution_clock::now();
@@ -244,7 +244,7 @@ void Matcher::match_wl(Graph<IT, VT>& graph,
     std::atomic<IT> num_enqueued(0);
     std::atomic<IT> num_dequeued(0);
     std::atomic<IT> num_contracting_blossoms(0);
-    std::atomic<IT> currentRoot(-1);
+    std::atomic<IT> currentRoot(0);
     std::atomic<IT> masterTID(-1);
     std::atomic<bool> found_augmenting_path(false);
     
@@ -305,7 +305,7 @@ void Matcher::match_persistent_wl(Graph<IT, VT>& graph,
         std::vector<IT> path;
     // Access the graph elements as needed
     for (std::size_t i = 0; i < graph.getN(); ++i) {
-        if (!graph.IsMatched(i)) {
+        if (!graph.HasBeenMatched(i)) {
             //printf("SEARCHING FROM %ld!\n",i);
             // Your matching logic goes here...
             auto search_start = high_resolution_clock::now();
@@ -352,9 +352,9 @@ void Matcher::match_persistent_wl4(Graph<IT, VT>& graph,
     std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     IT local_root;
     auto search_start = high_resolution_clock::now();
-    for (;(local_root=++currentRoot) < N;) {
+    for (;(local_root=currentRoot++) < N;) {
         read_messages[tid]++;
-        while(!graph.IsMatched(local_root)) {
+        while(!graph.HasBeenMatched(local_root)) {
             vertexVector[local_root].AgeField=f.time++;
             f.tree.push_back(vertexVector[local_root]);
             Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,local_root,f.stack);
@@ -426,6 +426,7 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
     Vertex<IT> * TailOfAugmentingPath;
     std::vector<IT> path;
     Frontier<IT,std::deque> f;
+    std::vector<IT> local_stack;
     IT N = graph.getN();
     const size_t nworkers = worklists.size();
     bool valid = true;
@@ -438,18 +439,68 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
     auto duration_alloc = duration_cast<milliseconds>(allocate_end - allocate_start);
     std::cout << "TID(" << tid << ") Vertex Vector (9|V|) memory allocation time: "<< duration_alloc.count() << " milliseconds" << '\n';
     auto search_start = high_resolution_clock::now();
-    while(currentRoot.load(std::memory_order_relaxed)<N){
+    num_enqueued++;
+    while (true){
         if (worklists[tid].try_dequeue(f)){
-            if(!graph.IsMatched(f.root)) {
+            if(!graph.HasBeenMatched(f.root)) {
 
             }
-        } else {
-            f.root=++currentRoot;
-            if(!graph.IsMatched(f.root)) {
+        } else if ((f.root=currentRoot++)<N){
+            read_messages[tid]++;
+            //f.root=currentRoot++;
+            if(!graph.HasBeenMatched(f.root)) {
                 vertexVector[f.root].AgeField=f.time++;
                 f.tree.push_back(vertexVector[f.root]);
                 Graph<IT,VT>::pushEdgesOntoStack(graph,vertexVector,f.root,f.stack);
+                if(concurrent_search(graph,f,vertexVector)){
+                    // Successfuly found AP. try to match
+                    if(f.TailOfAugmentingPathVertexIndex!=-1){
+                        TailOfAugmentingPath=&vertexVector[f.TailOfAugmentingPathVertexIndex];
+                        extract_path(graph,TailOfAugmentingPath,vertexVector,path);
+                        //augment(graph,TailOfAugmentingPath,vertexVector,path);
+                        for (auto E : path) {
+                            //Match(EdgeFrom(E)) = E;
+                            valid &= graph.GetMatchField(Graph<IT,VT>::EdgeFrom(graph,E))==vertexVector[Graph<IT,VT>::EdgeFrom(graph,E)].MatchField;
+                            //valid &= vertexVector[Graph<IT,VT>::EdgeFrom(graph,E)].MatchField == Graph<IT,VT>::EdgeFrom(graph,E) ||
+                            //vertexVector[Graph<IT,VT>::EdgeFrom(graph,E)].MatchField == Graph<IT,VT>::EdgeTo(graph,E);
+                            //valid &= vertexVector[Graph<IT,VT>::EdgeTo(graph,E)].MatchField == Graph<IT,VT>::EdgeFrom(graph,E) ||
+                            //vertexVector[Graph<IT,VT>::EdgeTo(graph,E)].MatchField == Graph<IT,VT>::EdgeTo(graph,E);
+                            //Match(EdgeTo(E)) = E;
+                            valid &= graph.GetMatchField(Graph<IT,VT>::EdgeTo(graph,E))==vertexVector[Graph<IT,VT>::EdgeTo(graph,E)].MatchField;
+                        }
+                        if (valid){
+                            for (auto E : path) {
+                                //Match(EdgeFrom(E)) = E;
+                                graph.SetMatchField(Graph<IT,VT>::EdgeFrom(graph,E),E);
+                                //Match(EdgeTo(E)) = E;
+                                graph.SetMatchField(Graph<IT,VT>::EdgeTo(graph,E),E);
+                            }
+                        }
+                    }
+                // Concurrent search failed due to augmentation problems.
+                }
             }
+            f.reinit(vertexVector);
+            f.clear();
+            path.clear();
+        }else{
+            
+            num_dequeued++;
+            while(num_dequeued.load()!=nworkers){}
+            bool foundBad = false;
+            while((f.root=currentRoot++)<2*N){      
+                auto local_root = f.root-N;      
+                if (!graph.IsMatched(local_root))  
+                    graph.SetMatchField(local_root,-1);
+            }
+            //if (foundBad)
+            //    currentRoot.store(0);
+            //else
+            
+            ++num_contracting_blossoms;
+            while(num_contracting_blossoms.load()!=nworkers){}
+            
+            break;
         }
     }
     auto search_end = high_resolution_clock::now();
@@ -560,7 +611,7 @@ void Matcher::next_iteration(Graph<IT, VT>& graph,
                     std::vector<moodycamel::ConcurrentQueue<IT, moodycamel::ConcurrentQueueDefaultTraits>> &worklists
                     ){
     while(++currentRoot < graph.getN()){
-        if (!graph.IsMatched(currentRoot)) {
+        if (!graph.HasBeenMatched(currentRoot)) {
             //printf("Enqueuing %d\n",i);
             num_enqueued++;
             worklists[tid].enqueue(currentRoot);
@@ -628,13 +679,13 @@ Vertex<IT> * Matcher::search_persistent(Graph<IT, VT>& graph,
             std::swap(FromBaseVertexID,ToBaseVertexID);
         }
         // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
-        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+        if (!ToBase->IsReached() && !graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
             // I'll let the augment path method recover the path.
             return ToBase;
-        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+        } else if (!ToBase->IsReached() && graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -697,7 +748,7 @@ void Matcher::search(Graph<IT, VT>& graph,
             std::swap(FromBaseVertexID,ToBaseVertexID);
         }
         // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
-        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+        if (!ToBase->IsReached() && !graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -705,7 +756,7 @@ void Matcher::search(Graph<IT, VT>& graph,
             // I'll let the augment path method recover the path.
             f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
             return;
-        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+        } else if (!ToBase->IsReached() && graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -774,7 +825,7 @@ bool Matcher::capped_search(Graph<IT, VT>& graph,
             std::swap(FromBaseVertexID,ToBaseVertexID);
         }
         // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
-        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+        if (!ToBase->IsReached() && !graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -782,7 +833,7 @@ bool Matcher::capped_search(Graph<IT, VT>& graph,
             // I'll let the augment path method recover the path.
             f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
             return false;
-        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+        } else if (!ToBase->IsReached() && graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -839,7 +890,7 @@ bool Matcher::concurrent_search(Graph<IT, VT>& graph,
             std::swap(FromBaseVertexID,ToBaseVertexID);
         }
         // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
-        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+        if (!ToBase->IsReached() && !graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -847,7 +898,7 @@ bool Matcher::concurrent_search(Graph<IT, VT>& graph,
             // I'll let the augment path method recover the path.
             f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
             return true;
-        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+        } else if (!ToBase->IsReached() && graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -920,7 +971,7 @@ void Matcher::start_search(Graph<IT, VT>& graph,
             std::swap(FromBaseVertexID,ToBaseVertexID);
         }
         // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
-        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+        if (!ToBase->IsReached() && !graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -928,7 +979,7 @@ void Matcher::start_search(Graph<IT, VT>& graph,
             // I'll let the augment path method recover the path.
             f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
             return;
-        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+        } else if (!ToBase->IsReached() && graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -987,7 +1038,7 @@ void Matcher::continue_search(Graph<IT, VT>& graph,
             std::swap(FromBaseVertexID,ToBaseVertexID);
         }
         // An unreached, unmatched vertex is found, AN AUGMENTING PATH!
-        if (!ToBase->IsReached() && !graph.IsMatched(ToBaseVertexID)){
+        if (!ToBase->IsReached() && !graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -995,7 +1046,7 @@ void Matcher::continue_search(Graph<IT, VT>& graph,
             // I'll let the augment path method recover the path.
             f.TailOfAugmentingPathVertexIndex=ToBase->LabelField;
             return;
-        } else if (!ToBase->IsReached() && graph.IsMatched(ToBaseVertexID)){
+        } else if (!ToBase->IsReached() && graph.HasBeenMatched(ToBaseVertexID)){
             ToBase->TreeField=stackEdge;
             ToBase->AgeField=time++;
             tree.push_back(*ToBase);
@@ -1048,7 +1099,7 @@ void Matcher::augment(Graph<IT, VT>& graph,
 
         //V = Other(Match(B), B);
         ptrdiff_t nextVertexBase_VertexID = nextVertexBase - &vertexVector[0];
-        if (graph.IsMatched(nextVertexBase_VertexID))
+        if (graph.HasBeenMatched(nextVertexBase_VertexID))
             TailOfAugmentingPath = &vertexVector[Graph<IT,VT>::Other(graph,graph.GetMatchField(nextVertexBase_VertexID),nextVertexBase_VertexID)];
         else 
             TailOfAugmentingPath = nullptr;

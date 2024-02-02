@@ -37,9 +37,10 @@ public:
             std::size_t M);*/
     size_t getN() const;
     size_t getM() const;
-    bool IsMatched(size_t index) const;
-    IT GetMatchField(size_t index) const;
-    void SetMatchField(size_t index,IT edge);
+    bool HasBeenMatched(IT index) const;
+    bool IsMatched(IT index) const;
+    IT GetMatchField(IT index) const;
+    void SetMatchField(IT index,IT edge);
     template <template <typename> class StackType = std::vector>
     static bool pushEdgesOntoStack(const Graph<IT, VT>& graph, 
                                         std::vector<Vertex<IT>> & vertexVector, 
@@ -125,20 +126,40 @@ size_t Graph<IT,VT>::getM() const{
 }
 
 
+
 template <typename IT, typename VT>
-bool Graph<IT,VT>::IsMatched(size_t index) const{
-    return matching[index].load()>-1;
+bool Graph<IT,VT>::HasBeenMatched(IT index) const{
+    return matching[index]>-1;
+}
+
+template <typename IT, typename VT>
+bool Graph<IT,VT>::IsMatched(IT index) const{
+    auto mm = matching[index].load();
+    if (mm>-1){
+        if (original_rows[mm] == index){
+            auto other = original_cols[mm];
+            return mm==matching[other].load();
+        } else if (original_cols[mm] == index){
+            auto other = original_rows[mm];
+            return mm==matching[other].load();
+        } else {
+            printf("MASSIVE ERROR IN MTCHING\n");
+            return false;
+        }
+    } else {
+        return false;
+    }
     //return matching[index]>-1;
 }
 
 template <typename IT, typename VT>
-IT Graph<IT,VT>::GetMatchField(size_t index) const{
+IT Graph<IT,VT>::GetMatchField(IT index) const{
     return matching[index].load();
     //return matching[index];
 }
 
 template <typename IT, typename VT>
-void Graph<IT,VT>::SetMatchField(size_t index,IT edge){
+void Graph<IT,VT>::SetMatchField(IT index,IT edge){
     matching[index].store(edge);
     //matching[index]=edge;
 }
@@ -265,6 +286,12 @@ IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT 
 template <typename IT, typename VT>
 inline IT Graph<IT,VT>::Other(const Graph<IT, VT>& graph, const IT edgeIndex, const IT vertexId) {
     // Using XOR to find the value that doesn't equal the third
+        /*
+    if (graph.original_rows[edgeIndex]==vertexId)
+        return graph.original_cols[edgeIndex];
+    else
+        return graph.original_rows[edgeIndex];
+        */
     return graph.original_rows[edgeIndex] ^ graph.original_cols[edgeIndex] ^ vertexId;
 }
 
