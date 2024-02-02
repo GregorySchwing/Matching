@@ -447,7 +447,9 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
     IT desired = 0;
     IT local_root;
     // Master
+    auto search_start = high_resolution_clock::now();
     if (currentRoot.compare_exchange_strong(expected, desired)) {
+        std::cout << "MASTER TID(" << tid << ")" << '\n';
         for (; (local_root=currentRoot++) < N;) {
             read_messages[tid]++;
             if (!graph.IsMatched(local_root)) {
@@ -468,17 +470,18 @@ void Matcher::match_persistent_wl5(Graph<IT, VT>& graph,
                 }
             }
         }
+        for (auto & cv:worklistCVs)
+            cv.notify_one();
     } else {
-        while(currentRoot.load(std::memory_order_relaxed)!=N){
+        // If the worklist is empty, wait for a signal
+        while(currentRoot.load(std::memory_order_relaxed)<N){
+            std::unique_lock<std::mutex> lock(worklistMutexes[tid]);
+            worklistCVs[tid].wait(lock, [&] { return worklists[tid].size_approx() || currentRoot.load(std::memory_order_relaxed)>=N; });
             if (worklists[tid].try_dequeue(f)){
-                read_messages[tid]++;
                 continue_search(graph,f,vertexVector);
             }
         }
     }
-    
-    auto search_start = high_resolution_clock::now();
-
     auto search_end = high_resolution_clock::now();
     auto duration_search = duration_cast<seconds>(search_end - search_start);
     std::cout << "Thread "<< tid << " algorithm execution time: "<< duration_search.count() << " seconds" << '\n';
