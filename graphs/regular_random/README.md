@@ -1,12 +1,1 @@
-# genreg
-generate regular graphs randomly
-
-
-## How to compile
-`g++ regular_graph.cpp -o generate -Wall -std=c++2a -O3`
-
-
-## References
-[1] A. Steger and N. Wormald,
-   Generating random regular graphs quickly,
-   Probability and Computing 8 (1999), 377-396, 1999.
+mutex_results.csv - used in scaling results for reg random.  generated using the mutex version of the code

@@ -1,11 +1,11 @@
 #!/bin/bash
 
 C=10
-for i in {6..8}
+for i in {6..6}
 do
-for deg in 2 3 5 10
+for deg in 2 3 4 5 6 7 8 9 10
 do
-for j in {5..5}
+for j in {4..10}
 do
 let SCALE=10**$i   # sets SCALE to 10Ei.
 VERTICES=$(($j*$SCALE))
