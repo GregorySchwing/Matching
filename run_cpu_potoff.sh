@@ -18,4 +18,5 @@
 #SBATCH -t 7-0:0:0
 #eval "$(conda shell.bash hook)"
 echo $HOSTNAME
+bash ./graphs/dimacs/download_all.txt
 bash ./graphs/dimacs/run_cpu.txt
