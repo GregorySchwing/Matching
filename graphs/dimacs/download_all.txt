@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-
+cd ./graphs/dimacs/
 cd 2DDynSims
 bash download.txt
 cd ..
@@ -24,4 +24,4 @@ cd streets
 bash download.txt
 cd ..
 
-
+cd ../..
