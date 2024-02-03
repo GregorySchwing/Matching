@@ -1,12 +1,12 @@
 #!/usr/bin/bash
-#./matcher ../graphs/dimacs/streets/asia_osm/asia_osm.mtx 5 1 0 50
-#./matcher ../graphs/dimacs/streets/asia_osm/asia_osm.mtx 5 2 1 50
-#./matcher ../graphs/dimacs/streets/asia_osm/asia_osm.mtx 5 4 1 50
-#./matcher ../graphs/dimacs/streets/asia_osm/asia_osm.mtx 5 8 1 50
-#./matcher ../graphs/dimacs/streets/asia_osm/asia_osm.mtx 5 16 1 50
+#./build/matcher ../graphs/dimacs/streets/asia_osm/asia_osm.mtx 5 1 0
+#./build/matcher ../graphs/dimacs/streets/asia_osm/asia_osm.mtx 5 2 1
+#./build/matcher ../graphs/dimacs/streets/asia_osm/asia_osm.mtx 5 4 1
+#./build/matcher ../graphs/dimacs/streets/asia_osm/asia_osm.mtx 5 8 1
+#./build/matcher ../graphs/dimacs/streets/asia_osm/asia_osm.mtx 5 16 1
 
-./matcher ../graphs/dimacs/streets/europe_osm/europe_osm.mtx 5 1 0 50
-./matcher ../graphs/dimacs/streets/europe_osm/europe_osm.mtx 5 2 1 50
-./matcher ../graphs/dimacs/streets/europe_osm/europe_osm.mtx 5 4 1 50
-./matcher ../graphs/dimacs/streets/europe_osm/europe_osm.mtx 5 8 1 50
-#./matcher ../graphs/dimacs/streets/europe_osm/europe_osm.mtx 5 16 1 50
+./build/matcher ../graphs/dimacs/streets/europe_osm/europe_osm.mtx 5 1 0
+./build/matcher ../graphs/dimacs/streets/europe_osm/europe_osm.mtx 5 2 1
+./build/matcher ../graphs/dimacs/streets/europe_osm/europe_osm.mtx 5 4 1
+./build/matcher ../graphs/dimacs/streets/europe_osm/europe_osm.mtx 5 8 1
+#./build/matcher ../graphs/dimacs/streets/europe_osm/europe_osm.mtx 5 16 1

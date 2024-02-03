@@ -8,7 +8,6 @@
 
 #SBATCH --mem=24G
 #SBATCH --nodelist=ressrv4ai8111
-#SBATCH --gres=gpu:0
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=go2432@wayne.edu
 
@@ -19,4 +18,4 @@
 #SBATCH -t 7-0:0:0
 #eval "$(conda shell.bash hook)"
 echo $HOSTNAME
-bash ../graphs/dimacs/run_cpu.txt
+bash ./graphs/dimacs/run_cpu.txt

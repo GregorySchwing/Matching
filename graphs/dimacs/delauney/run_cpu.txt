@@ -1,6 +1,6 @@
 #!/bin/bash
-./matcher ../graphs/dimacs/delauney/delaunay_n24/delaunay_n24.mtx 5 1 0 50
-./matcher ../graphs/dimacs/delauney/delaunay_n24/delaunay_n24.mtx 5 2 1 50
-./matcher ../graphs/dimacs/delauney/delaunay_n24/delaunay_n24.mtx 5 4 1 50
-./matcher ../graphs/dimacs/delauney/delaunay_n24/delaunay_n24.mtx 5 8 1 50
-./matcher ../graphs/dimacs/delauney/delaunay_n24/delaunay_n24.mtx 5 16 1 50
+./build/matcher ../graphs/dimacs/delauney/delaunay_n24/delaunay_n24.mtx 5 1 0
+./build/matcher ../graphs/dimacs/delauney/delaunay_n24/delaunay_n24.mtx 5 2 1
+./build/matcher ../graphs/dimacs/delauney/delaunay_n24/delaunay_n24.mtx 5 4 1
+./build/matcher ../graphs/dimacs/delauney/delaunay_n24/delaunay_n24.mtx 5 8 1
+./build/matcher ../graphs/dimacs/delauney/delaunay_n24/delaunay_n24.mtx 5 16 1
