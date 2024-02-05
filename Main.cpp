@@ -88,7 +88,7 @@ int main(int argc, char **argv) {
         }
         auto match_start = high_resolution_clock::now();
         if (execution){
-            Matcher::match_wl2<INDEX_TYPE, std::string>(G,num_threads,deferral_threshold);
+            Matcher::match_wl3<INDEX_TYPE, std::string>(G,num_threads,deferral_threshold);
         } else {
             Matcher::match<INDEX_TYPE, std::string>(G);
         }

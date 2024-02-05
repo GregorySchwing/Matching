@@ -30,6 +30,10 @@ public:
                         int num_threads,
                         int deferral_threshold);
     template <typename IT, typename VT>
+    static void match_wl3(Graph<IT, VT>& graph, 
+                        int num_threads,
+                        int deferral_threshold);
+    template <typename IT, typename VT>
     static void match_persistent_wl(Graph<IT, VT> &graph,
                                     moodycamel::ConcurrentQueue<IT> &worklist,
                                     bool &finished);
@@ -370,6 +374,72 @@ void Matcher::match_wl2(Graph<IT, VT>& graph,
     }
     printf("Total read_messages %zu \n", tot_read_messages);
 }
+
+
+#include "ThreadFactory.h"
+template <typename IT, typename VT>
+void Matcher::match_wl3(Graph<IT, VT>& graph, 
+                        int num_threads,
+                        int deferral_threshold) {
+    auto mt_thread_coordination_start = high_resolution_clock::now();
+    size_t capacity = 1;
+    std::vector<moodycamel::ConcurrentQueue<Frontier<IT,std::deque>, moodycamel::ConcurrentQueueDefaultTraits>> worklists;
+    worklists.reserve(num_threads);
+    for (int i = 0; i < num_threads; ++i) {
+        // Initialize each queue with the desired parameters
+        worklists.emplace_back(moodycamel::ConcurrentQueue<Frontier<IT,std::deque>>{capacity});
+    }
+    
+    std::vector<std::mutex> worklistMutexes(num_threads);
+    std::vector<std::condition_variable> worklistCVs(num_threads);
+
+    std::atomic<IT> num_enqueued(0);
+    std::atomic<IT> num_dequeued(0);
+    std::atomic<IT> num_contracting_blossoms(0);
+    std::atomic<IT> currentRoot(-1);
+    std::atomic<IT> masterTID(-1);
+    std::atomic<bool> found_augmenting_path(false);
+    
+    //std::vector<std::atomic<bool>> atomicBoolVector(num_threads);
+    std::vector<std::thread> workers(num_threads);
+    std::vector<size_t> read_messages;
+    read_messages.resize(num_threads);
+    auto mt_thread_coordination_end = high_resolution_clock::now();
+    auto durationmt = duration_cast<microseconds>(mt_thread_coordination_end - mt_thread_coordination_start);
+    std::cout << "Worklist and atomic variable allocation time: "<< durationmt.count() << " microseconds" << '\n';
+
+
+
+    //spinning.resize(num_threads,false);
+    // Access the graph elements as needed
+    ThreadFactory::create_threads_concurrentqueue_wl3<IT,VT>(workers, num_threads,read_messages,
+    worklists,masterTID,graph,
+    currentRoot,found_augmenting_path,
+    worklistMutexes,worklistCVs,num_enqueued,num_dequeued,num_contracting_blossoms,
+    deferral_threshold);
+
+    auto join_thread_start = high_resolution_clock::now();
+    for (auto& t : workers) {
+        t.join();
+    }
+    auto join_thread_end = high_resolution_clock::now();
+    auto duration = duration_cast<seconds>(join_thread_end - join_thread_start);
+    std::cout << "Thread joining time: "<< duration.count() << " seconds" << '\n';
+
+    std::cout << "NUM ENQUEUED " << num_enqueued.load() << '\n';
+    std::cout << "NUM DEQUEUED " << num_dequeued.load() << '\n';
+    std::cout << "NUM SPINNING " << num_contracting_blossoms.load() << '\n';
+
+    size_t tot_read_messages = 0;
+    int ni = 0;
+    for (size_t n : read_messages){
+        printf("reader: \t\t %d read_messages %zu \n", ni++,n);
+        tot_read_messages += n;
+    }
+    printf("Total read_messages %zu \n", tot_read_messages);
+}
+
+
 
 
 template <typename IT, typename VT>
